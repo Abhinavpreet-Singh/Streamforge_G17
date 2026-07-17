@@ -9,3 +9,4 @@ APP_ID = "streamforge"
 
 INPUT_TOPIC = "truck-events"
 
+OUTPUT_TOPIC = "truck-averages"
