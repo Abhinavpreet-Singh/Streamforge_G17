@@ -1,16 +1,21 @@
-"""
-Weeks 1-3 — Stream Processing (Owner: Stream Processing Engineer,
-branch: dev/stream-processing)
+import faust
 
-Faust/Bytewax topology: Consume -> Filter(temp > 0) -> Map -> windowed
-5-minute rolling average per truck.
+from .config import (
+    APP_ID,
+    INPUT_TOPIC,
+    KAFKA_BROKER,
+)
 
-TODO:
-- [ ] Week 1: define the Faust/Bytewax app + topic schema
-- [ ] Week 2: build Consume -> Filter -> Map pipeline; tumbling/hopping windows
-- [ ] Mid Review: prove 100k events/sec across partitions
-- [ ] Week 3: wire windowed output into the RocksDB changelog
-      (see src/state_store/rocksdb_store.py)
-"""
+from .models import TruckEvent
 
-raise NotImplementedError("Define the Faust/Bytewax app here")
+
+app = faust.App(
+    APP_ID,
+    broker=f"kafka://{KAFKA_BROKER}",
+    value_serializer="json",
+)
+
+truck_topic = app.topic(
+    INPUT_TOPIC,
+    value_type=TruckEvent,
+)
