@@ -1,6 +1,6 @@
 # StreamForge — Distributed Python Event Processor
 
-**Axlero Solutions Intern Project · Team of 5 · Month 1 (Project 1 of 2)**
+**Axlero Solutions Intern Project · Team of 6 · Month 1 (Project 1 of 2)**
 Domain: Distributed Systems & Big Data — built on Kafka + Faust/Bytewax + RocksDB + FastAPI + React Flow.
 
 A pure-Python streaming engine that ingests IoT truck telemetry from a simulated fleet of 50,000 trucks,
@@ -11,17 +11,20 @@ with zero data loss (state recovered from a RocksDB changelog).
 
 ## 1. Team & Ownership
 
+Team is 6, not 5 — roles are assigned by current skill fit rather than the original 5-role template.
+Full rationale in [WORK_DISTRIBUTION.md](WORK_DISTRIBUTION.md).
+
 | Role | Owner | Branch | Focus |
 |---|---|---|---|
-| Team Lead — Kafka Foundation & Integration | You | `dev/lead` | Cluster setup, producer, Avro schemas, merges, review prep |
-| Stream Processing Engineer | Member 2 | `dev/stream-processing` | Faust/Bytewax topology, windowing logic |
-| State & Fault-Tolerance Engineer | Member 3 | `dev/state-store` | RocksDB state store, changelog recovery, chaos testing |
-| Backend API & Observability Engineer | Member 4 | `dev/backend-api` | FastAPI topology monitor, Prometheus metrics |
-| Frontend/Dashboard Engineer | Member 5 | `dev/frontend` | React Flow DAG view, live telemetry dashboard |
+| Team Lead — Kafka Foundation & Integration | Abhinavpreet | `Abhinavpreet` | Cluster setup, producer, Avro schemas, merges, review prep |
+| Stream Processing Engineer | Member 2 | `Meven` | Faust/Bytewax topology, windowing logic, RocksDB changelog wiring |
+| Data Simulation & Validation Engineer | Member 3 | _TBD_ | Synthetic truck dataset, output validation, recovery verification |
+| Frontend/Dashboard Engineer | Member 4 | _TBD_ | React Flow DAG view, live telemetry dashboard |
+| Documentation, Testing & Chaos Engineer | Member 5 | _TBD_ | Architecture diagrams, test cases, chaos-testing scripts |
+| Backend API & Observability Engineer | Member 6 | _TBD_ | FastAPI topology monitor, Prometheus metrics, WebSocket feed |
 
-> Branches are pre-created with placeholder names. Once roles are confirmed, rename each one to the
-> teammate's actual GitHub handle:
-> `git branch -m dev/stream-processing dev/<github-username>` then push with `-u`.
+> Real GitHub branches already exist for the team: `Abhinavpreet`, `Meven`, `Noore`, `Raghavendra`,
+> `Shifana`, `Surya`. Fill in the `_TBD_` cells once each remaining branch is matched to a role.
 
 Per Axlero SOP: every member commits **directly to their own branch**; the Team Lead is the only one
 who merges into `main`. GitHub is mandatory for this project (no Figma exemption here).
@@ -30,11 +33,12 @@ who merges into `main`. GitHub is mandatory for this project (no Figma exemption
 
 ```
 main                  ← protected, integration branch, Lead-only merges
-├── dev/lead
-├── dev/stream-processing
-├── dev/state-store
-├── dev/backend-api
-└── dev/frontend
+├── Abhinavpreet       (Lead)
+├── Meven               \
+├── Noore                 } one branch per remaining member,
+├── Raghavendra            } role assigned per §1 above
+├── Shifana               /
+└── Surya
 ```
 
 Workflow: work on your branch → open a PR into `main` at the end of each week → Lead reviews & merges
@@ -66,14 +70,17 @@ Local infra once running:
 
 ## 4. Week-wise Plan (mapped to owners)
 
-| Week | Stream Processing (`dev/stream-processing`) | State & Recovery (`dev/state-store`) | API/Metrics (`dev/backend-api`) | Frontend (`dev/frontend`) | Lead (`dev/lead`) |
-|---|---|---|---|---|---|
-| 1 | Define Faust/Bytewax app skeleton | — | Scaffold FastAPI + `/health` | Scaffold React Flow canvas | Kafka cluster up, producer blasting mock telemetry |
-| 2 | Consume → Filter(temp>0) → Map; tumbling/hopping windows | — | — | — | Register Avro schema in Schema Registry |
-| **Mid Review** | Prove 100k events/sec across partitions | Verify 5-min rolling avg correctness incl. late data | — | — | Confirm 10/14-day commit rule met |
-| 3 | Wire output into changelog topic | Implement RocksDB store + changelog backup; chaos test (kill a worker, prove recovery) | — | Telemetry dashboard components | Integration pass |
-| 4 | — | — | `/metrics`, `/topology`, `/ws/live` (Prometheus + WebSocket) | Wire metrics into React Flow, polish UI | Demo prep, merge freeze |
-| **Final Review** | — | — | — | — | Confirm 20/20-day commit rule met, full demo |
+RocksDB / state-recovery work is folded into Stream Processing (Week 3) rather than kept as a
+standalone role — see [WORK_DISTRIBUTION.md](WORK_DISTRIBUTION.md) for the full rationale.
+
+| Week | Stream Processing | Data Simulation & Validation | Frontend | Docs/Testing/Chaos | Backend API | Lead |
+|---|---|---|---|---|---|---|
+| 1 | Faust/Bytewax app skeleton, consumer prints raw messages | 50k-truck synthetic dataset (pandas/numpy/faker) | React + React Flow scaffold, static DAG boxes | Architecture/workflow/team diagrams | FastAPI scaffold, `/health` | Docker-compose stack up, Kafka topics created, producer implemented |
+| 2 | Consume → Filter(temp>0) → Map; tumbling/hopping windows | Validation scripts (expected vs. system average) | — | Test cases (valid/invalid temp, missing truck ID, late data) | `/metrics`, `/topology` | Register Avro schema in Schema Registry |
+| **Mid Review** | Prove 100k events/sec across partitions | Confirm dataset + validation outputs match system | — | — | — | Confirm 10/14-day commit rule met |
+| 3 | Wire output into RocksDB changelog topic; chaos test (kill a worker, prove recovery) | Recovery verification (pre/post-crash average comparison) | Live telemetry dashboard components | Chaos-testing scripts (kill/restart worker), results documented | `/ws/live` WebSocket | Integration pass across branches |
+| 4 | Performance tuning, throughput audit | Benchmark report + charts | Wire metrics into React Flow, polish UI | Demo script, review deck | Backend↔frontend integration | Demo prep, merge freeze |
+| **Final Review** | — | — | — | — | — | Confirm 20/20-day commit rule met, full demo |
 
 ## 5. Definition of Done
 
@@ -119,10 +126,12 @@ streamforge/
 ├── src/
 │   ├── producer/truck_producer.py       (Lead)
 │   ├── stream_processor/topology.py     (Stream Processing)
-│   ├── state_store/rocksdb_store.py     (State & Recovery)
-│   ├── api/main.py                      (Backend/API)
-│   └── metrics/                         (Backend/API)
+│   ├── state_store/rocksdb_store.py     (Stream Processing, Week 3)
+│   ├── api/main.py                      (Backend API)
+│   └── metrics/                         (Backend API)
+├── datasets/                            (Data Simulation & Validation — Week 1 CSV output)
+├── analytics/                           (Data Simulation & Validation — Week 2-4 validation/benchmarks)
 ├── frontend/README.md                   (Frontend)
 ├── tests/
-└── docs/architecture.md
+└── docs/architecture.md                 (Docs/Testing/Chaos)
 ```
