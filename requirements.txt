@@ -1,6 +1,10 @@
 # Core streaming
 confluent-kafka==2.4.0
 faust-streaming==0.11.3
+# faust-streaming declares aiokafka>=0.10.0 but is actually broken on 0.14.0
+# (AttributeError: 'MetadataRequest_v1' object has no attribute 'prepare' —
+# an internal protocol change upstream). Pin to the version confirmed working.
+aiokafka==0.10.0
 
 # State store (pure-Python RocksDB bindings — easier install than python-rocksdb)
 rocksdict==0.3.19

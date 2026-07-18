@@ -5,6 +5,8 @@ class TruckEvent(
     faust.Record,
     serializer="json"
 ):
-    truck_id: str
+    # Matches the producer's wire format (src/producer/truck_producer.py) —
+    # truck_id is an int key, timestamp is an ISO-8601 UTC string.
+    truck_id: int
     temperature: float
-    timestamp: int
+    timestamp: str

@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "TruckReading",
+  "namespace": "com.streamforge",
+  "fields": [
+    { "name": "truck_id", "type": "int" },
+    { "name": "temperature", "type": "float" },
+    { "name": "timestamp", "type": "string" }
+  ]
+}
