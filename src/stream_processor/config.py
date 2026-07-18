@@ -7,6 +7,6 @@ KAFKA_BROKER = os.getenv(
 
 APP_ID = "streamforge"
 
-INPUT_TOPIC = "truck-events"
+INPUT_TOPIC = "truck-telemetry"
 
 OUTPUT_TOPIC = "truck-averages"

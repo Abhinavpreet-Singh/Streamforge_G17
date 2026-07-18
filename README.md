@@ -61,6 +61,15 @@ always demo-able for reviews.
 
 ## 3. Environment Setup
 
+**Use Python 3.11 or 3.12.** `rocksdict` and `confluent-kafka` are Rust/C
+binary packages that only ship prebuilt wheels for specific Python versions —
+on a too-new interpreter (e.g. 3.14) `pip install` fails with "Could not find
+a version that satisfies the requirement rocksdict==0.3.19" because no wheel
+exists yet and pip won't build the Rust extension from source. Confirmed
+working on 3.12.5. If you have multiple Python versions installed, target
+3.12 explicitly: `py -3.12 -m venv .venv` (Windows) or `python3.12 -m venv
+.venv` (Mac/Linux).
+
 ```bash
 # 1. Clone / unzip, then from the project root:
 bash scripts/setup.sh          # creates venv, installs deps, brings up local infra
