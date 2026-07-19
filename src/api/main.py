@@ -13,10 +13,25 @@ TODO:
 """
 
 from fastapi import FastAPI
+from prometheus_client import Counter, generate_latest
+from fastapi.responses import Response
 
 app = FastAPI(title="StreamForge Topology API")
+#Counter for health endpoint hits
+health_counter = Counter(
+    "health_requests_total",
+    "Total number of requests to /health"
+)
 
 
 @app.get("/health")
 def health():
+    health_counter.inc()
     return {"status": "ok"}
+
+@app.get("/metrics")
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type="text/plain"
+    )
