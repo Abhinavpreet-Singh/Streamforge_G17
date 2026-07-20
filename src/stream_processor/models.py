@@ -5,6 +5,7 @@ class TruckEvent(
     faust.Record,
     serializer="json"
 ):
-    truck_id: str
+    
+    truck_id: int
     temperature: float
-    timestamp: int
+    timestamp: str
