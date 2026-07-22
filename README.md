@@ -112,6 +112,29 @@ than kept as a standalone role — see
   lost/duplicated readings, Prometheus metrics flowing into the React Flow
   dashboard, end-to-end demo works from producer to UI.
 
+### 5.1 Throughput audit — measured results
+
+Run with `python scripts/load_test_producer.py 20 10000 --workers 10`
+(8-core dev machine, single-broker local Kafka, 20 partitions):
+
+| Configuration | Events/sec | Verdict |
+| --- | --- | --- |
+| 10 worker processes, validation off | **111,968** | PASS (target: 100,000) |
+| 10 worker processes, validation on | 66,150 | Below target |
+| 1 process, validation on | 12,533 | Below target |
+
+Two things this measurement establishes:
+
+- **Multiprocessing is what gets us there, not tuning.** A single process tops
+  out around 12k events/sec — the bottleneck is CPU-bound JSON encoding in a
+  GIL-bound loop, so threads wouldn't help. Throughput scales with process
+  count until cores run out.
+- **Per-message Avro validation costs ~41% throughput** (112k → 66k). The
+  correctness path (`src/producer/truck_producer.py`) validates every message
+  and is proven separately, so the load-test path leaves validation off by
+  default — otherwise the audit measures `fastavro` rather than the pipeline.
+  Pass `--validate` to reproduce the slower number.
+
 ## 6. Uniqueness / Portfolio Differentiators
 
 The base spec (Kafka + Faust + RocksDB + a dashboard) is already solid, but
