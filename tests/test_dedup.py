@@ -1,4 +1,4 @@
-from src.stream_processor.topology import SeenReadings
+from src.stream_processor.transforms import SeenReadings
 
 
 def test_first_reading_is_not_duplicate():
