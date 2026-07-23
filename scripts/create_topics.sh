@@ -19,3 +19,15 @@ docker compose exec -T kafka kafka-topics \
 
 docker compose exec -T kafka kafka-topics \
   --bootstrap-server localhost:9092 --describe --topic "$TOPIC"
+
+OUTPUT_TOPIC=truck-averages
+echo "Creating topic '$OUTPUT_TOPIC' ($PARTITIONS partitions)..."
+docker compose exec -T kafka kafka-topics \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists \
+  --topic "$OUTPUT_TOPIC" \
+  --partitions "$PARTITIONS" \
+  --replication-factor "$REPLICATION"
+
+docker compose exec -T kafka kafka-topics \
+  --bootstrap-server localhost:9092 --describe --topic "$OUTPUT_TOPIC"
