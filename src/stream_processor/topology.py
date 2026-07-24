@@ -11,14 +11,36 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from typing import Any
+from datetime import timedelta
+from typing import Any
 
 import faust
 
 from .config import (
     APP_ID,
     HOPPING_STEP_SECONDS,
+    HOPPING_STEP_SECONDS,
     INPUT_TOPIC,
     KAFKA_BROKER,
+    OUTPUT_TOPIC,
+    TOPIC_PARTITIONS,
+    WINDOW_EXPIRES_SECONDS,
+    WINDOW_SIZE_SECONDS,
+)
+from .models import (
+    NormalizedReading,
+    TemperatureAggregate,
+    TruckEvent,
+    TruckWindowAverage,
+    WindowType,
+)
+from .transforms import (
+    SeenReadings,
+    build_window_average,
+    coerce_window_values,
+    normalize_event,
+    summarize_window,
+)
     OUTPUT_TOPIC,
     TOPIC_PARTITIONS,
     WINDOW_EXPIRES_SECONDS,
@@ -46,7 +68,10 @@ app = faust.App(
     broker=f"kafka://{KAFKA_BROKER}",
     value_serializer="json",
     topic_partitions=TOPIC_PARTITIONS,
+    topic_partitions=TOPIC_PARTITIONS,
 )
+
+app.conf.table_cleanup_interval = 5.0
 
 app.conf.table_cleanup_interval = 5.0
 
@@ -175,3 +200,4 @@ async def aggregate_hopping(readings):
 
 if __name__ == "__main__":
     app.main()
+
