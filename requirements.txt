@@ -5,6 +5,9 @@ faust-streaming==0.11.3
 # (AttributeError: 'MetadataRequest_v1' object has no attribute 'prepare' —
 # an internal protocol change upstream). Pin to the version confirmed working.
 aiokafka==0.10.0
+# The load-test producer writes lz4-compressed batches (confluent-kafka has
+# lz4 built in); aiokafka needs this package to decompress them consumer-side.
+lz4==4.3.3
 
 # State store (pure-Python RocksDB bindings — easier install than python-rocksdb)
 rocksdict==0.3.19

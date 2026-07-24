@@ -31,3 +31,18 @@ docker compose exec -T kafka kafka-topics \
 
 docker compose exec -T kafka kafka-topics \
   --bootstrap-server localhost:9092 --describe --topic "$OUTPUT_TOPIC"
+
+# Log-compacted: recovery only needs the latest state per truck, so
+# compaction keeps replay bounded as the changelog grows.
+CHANGELOG_TOPIC=truck-state-changelog
+echo "Creating topic '$CHANGELOG_TOPIC' ($PARTITIONS partitions, compacted)..."
+docker compose exec -T kafka kafka-topics \
+  --bootstrap-server localhost:9092 \
+  --create --if-not-exists \
+  --topic "$CHANGELOG_TOPIC" \
+  --partitions "$PARTITIONS" \
+  --replication-factor "$REPLICATION" \
+  --config cleanup.policy=compact
+
+docker compose exec -T kafka kafka-topics \
+  --bootstrap-server localhost:9092 --describe --topic "$CHANGELOG_TOPIC"
