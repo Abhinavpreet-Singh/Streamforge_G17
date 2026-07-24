@@ -167,6 +167,13 @@ async def ingest(events):
                 event.timestamp,
             )
             continue
+        yield event
+
+
+@app.agent(ingest)
+async def filter_and_map(events):
+    """Stage 2: Filter(temp > 0) → Map to NormalizedReading."""
+    async for event in events:
 
         reading = normalize_event(event)
         if reading is None:
