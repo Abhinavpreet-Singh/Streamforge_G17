@@ -35,3 +35,21 @@ def metrics():
         content=generate_latest(),
         media_type="text/plain"
     )
+@app.get("/topology")
+def topology():
+    return{
+        "status": "running",
+        "kafka": "connected",
+        "workers": [
+            {
+                "id": "worker-1",
+                "status": "healthy"
+            },
+            {
+                "id": "worker-2",
+                "status": "healthy"
+            }
+
+        ],
+        "total_workers": 2
+    }
