@@ -62,6 +62,16 @@ averages_topic = app.topic(
 
 seen_readings = SeenReadings()
 
+# Stage boundaries are explicit in-memory channels rather than agent-to-agent
+# chaining (Faust only accepts a channel/topic/str as an agent source, not
+# another Agent). Each window type gets its own channel: a channel delivers
+# each event to a single consumer, so fanning out to two aggregators needs
+# two sends. Keeping NormalizedReading as the event in scope on these
+# channels is also what makes `.relative_to_field(event_time)` work — the
+# raw TruckEvent has no event_time field to window on.
+tumbling_channel = app.channel(value_type=NormalizedReading)
+hopping_channel = app.channel(value_type=NormalizedReading)
+
 WINDOW_SIZE = timedelta(seconds=WINDOW_SIZE_SECONDS)
 WINDOW_EXPIRES = timedelta(seconds=WINDOW_EXPIRES_SECONDS)
 HOPPING_STEP = timedelta(seconds=HOPPING_STEP_SECONDS)
@@ -123,7 +133,7 @@ hopping_table = (
 
 @app.agent(truck_topic)
 async def ingest(events):
-    """Stage 1: consume + deduplicate at-least-once replays."""
+    """Stage 1+2: consume, drop at-least-once replays, Filter(temp > 0) → Map."""
     async for event in events:
         if seen_readings.is_duplicate(event.truck_id, event.timestamp):
             logger.warning(
@@ -132,13 +142,7 @@ async def ingest(events):
                 event.timestamp,
             )
             continue
-        yield event
 
-
-@app.agent(ingest)
-async def filter_and_map(events):
-    """Stage 2: Filter(temp > 0) → Map to NormalizedReading."""
-    async for event in events:
         reading = normalize_event(event)
         if reading is None:
             logger.debug(
@@ -147,10 +151,13 @@ async def filter_and_map(events):
                 event.temperature,
             )
             continue
-        yield reading
+
+        key = str(reading.truck_id)
+        await tumbling_channel.send(key=key, value=reading)
+        await hopping_channel.send(key=key, value=reading)
 
 
-@app.agent(filter_and_map)
+@app.agent(tumbling_channel)
 async def aggregate_tumbling(readings):
     """Stage 3a: 5-minute tumbling windows per truck_id."""
     async for reading in readings:
@@ -158,7 +165,7 @@ async def aggregate_tumbling(readings):
         tumbling_table[reading.truck_id] = current.add(reading.temperature_c)
 
 
-@app.agent(filter_and_map)
+@app.agent(hopping_channel)
 async def aggregate_hopping(readings):
     """Stage 3b: 5-minute hopping windows (1-minute step) per truck_id."""
     async for reading in readings:
