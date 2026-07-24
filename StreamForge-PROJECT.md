@@ -110,6 +110,38 @@ Two things this measurement establishes:
   load-test path leaves validation off by default — otherwise the audit measures `fastavro`
   rather than the pipeline. Pass `--validate` to reproduce the slower number.
 
+### 5.2 Crash-recovery audit — measured results
+
+Run with `python scripts/chaos_recovery_demo.py 20 5` (requires the stack up and
+`bash scripts/create_topics.sh` to have created `truck-state-changelog`):
+
+```
+[1] worker A ingesting 20 readings x 5 trucks...
+[2] killing worker A mid-calculation (no flush, local state destroyed)...
+[3] worker B starting empty, replaying changelog from Kafka...
+    read 100 changelog records / restored 5 truck states
+PASSED: all 5 truck states recovered exactly, zero data loss
+```
+
+The test is deliberately harsher than a graceful restart: worker A is dropped
+without `checkpoint()` or `close()`, and its RocksDB directory is deleted — the
+worst case, a replacement landing on a fresh node after a rebalance. Worker B
+starts empty and rebuilds purely from Kafka.
+
+Design notes that make this hold:
+
+- **RocksDB is a local cache; the changelog is the source of truth.** A worker
+  that keeps its disk reads locally; one that lost it replays. Both converge on
+  identical state.
+- **Writes go to RocksDB first, then the changelog.** A crash between the two
+  replays a stale-but-correct value rather than inventing state that never
+  existed locally — worst case costs one reading, never a corrupt total.
+- **Replay is idempotent** (covered by `test_changelog_replay_is_idempotent`):
+  records are last-write-wins per key, so at-least-once changelog delivery
+  can't double-count.
+- **The changelog topic is log-compacted**, so replay time stays bounded by
+  truck count rather than growing with total readings.
+
 ## 6. Uniqueness / Portfolio Differentiators
 
 The base spec (Kafka + Faust + RocksDB + a dashboard) is already solid, but these push it past a

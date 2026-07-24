@@ -11,36 +11,14 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from typing import Any
-from datetime import timedelta
-from typing import Any
 
 import faust
 
 from .config import (
     APP_ID,
     HOPPING_STEP_SECONDS,
-    HOPPING_STEP_SECONDS,
     INPUT_TOPIC,
     KAFKA_BROKER,
-    OUTPUT_TOPIC,
-    TOPIC_PARTITIONS,
-    WINDOW_EXPIRES_SECONDS,
-    WINDOW_SIZE_SECONDS,
-)
-from .models import (
-    NormalizedReading,
-    TemperatureAggregate,
-    TruckEvent,
-    TruckWindowAverage,
-    WindowType,
-)
-from .transforms import (
-    SeenReadings,
-    build_window_average,
-    coerce_window_values,
-    normalize_event,
-    summarize_window,
-)
     OUTPUT_TOPIC,
     TOPIC_PARTITIONS,
     WINDOW_EXPIRES_SECONDS,
@@ -68,10 +46,7 @@ app = faust.App(
     broker=f"kafka://{KAFKA_BROKER}",
     value_serializer="json",
     topic_partitions=TOPIC_PARTITIONS,
-    topic_partitions=TOPIC_PARTITIONS,
 )
-
-app.conf.table_cleanup_interval = 5.0
 
 app.conf.table_cleanup_interval = 5.0
 
@@ -87,13 +62,15 @@ averages_topic = app.topic(
 
 seen_readings = SeenReadings()
 
-# Stage boundaries are explicit in-memory channels rather than agent-to-agent
-# chaining (Faust only accepts a channel/topic/str as an agent source, not
-# another Agent). Each window type gets its own channel: a channel delivers
-# each event to a single consumer, so fanning out to two aggregators needs
-# two sends. Keeping NormalizedReading as the event in scope on these
-# channels is also what makes `.relative_to_field(event_time)` work — the
-# raw TruckEvent has no event_time field to window on.
+# Stages are joined by explicit in-memory channels rather than agent-to-agent
+# chaining: Faust only accepts a channel/topic/str as an agent source, so
+# `@app.agent(some_agent)` fails at startup. Each window type needs its own
+# channel because a channel delivers each event to a single consumer — one
+# shared channel would split readings between the two aggregators instead of
+# feeding both. Passing NormalizedReading over these channels is also what
+# makes `.relative_to_field(event_time)` work downstream; the raw TruckEvent
+# has no event_time field to window on.
+deduped_channel = app.channel(value_type=TruckEvent)
 tumbling_channel = app.channel(value_type=NormalizedReading)
 hopping_channel = app.channel(value_type=NormalizedReading)
 
@@ -158,7 +135,7 @@ hopping_table = (
 
 @app.agent(truck_topic)
 async def ingest(events):
-    """Stage 1+2: consume, drop at-least-once replays, Filter(temp > 0) → Map."""
+    """Stage 1: consume + drop at-least-once replays."""
     async for event in events:
         if seen_readings.is_duplicate(event.truck_id, event.timestamp):
             logger.warning(
@@ -167,14 +144,13 @@ async def ingest(events):
                 event.timestamp,
             )
             continue
-        yield event
+        await deduped_channel.send(key=str(event.truck_id), value=event)
 
 
-@app.agent(ingest)
+@app.agent(deduped_channel)
 async def filter_and_map(events):
     """Stage 2: Filter(temp > 0) → Map to NormalizedReading."""
     async for event in events:
-
         reading = normalize_event(event)
         if reading is None:
             logger.debug(
@@ -207,4 +183,3 @@ async def aggregate_hopping(readings):
 
 if __name__ == "__main__":
     app.main()
-
