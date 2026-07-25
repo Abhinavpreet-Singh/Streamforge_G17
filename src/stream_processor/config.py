@@ -5,7 +5,10 @@ KAFKA_BROKER = os.getenv(
     "localhost:9092",
 )
 
-APP_ID = "streamforge"
+# App id doubles as the Kafka consumer group. Override it to run an isolated
+# consumer (e.g. a demo that must replay a topic from the beginning without
+# inheriting the main group's committed offsets).
+APP_ID = os.getenv("APP_ID", "streamforge")
 
 INPUT_TOPIC = "truck-telemetry"
 OUTPUT_TOPIC = "truck-averages"
