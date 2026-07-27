@@ -15,8 +15,13 @@ TODO:
 from fastapi import FastAPI
 from prometheus_client import Counter, generate_latest
 from fastapi.responses import Response
+from confluent_kafka.admin import AdminClient
 
 app = FastAPI(title="StreamForge Topology API")
+
+admin = AdminClient({
+    "bootstrap.servers": "localhost:9092"
+})
 #Counter for health endpoint hits
 health_counter = Counter(
     "health_requests_total",
@@ -35,3 +40,42 @@ def metrics():
         content=generate_latest(),
         media_type="text/plain"
     )
+@app.get("/topology")
+def topology():
+    try:
+        metadata = admin.list_topics(timeout=5)
+
+        kafka_status = "connected"
+
+        telemetry_topic = metadata.topics.get("truck-telemetry")
+        averages_topic = metadata.topics.get("truck-averages")
+
+        telemetry_partitions = len(telemetry_topic.partitions) if telemetry_topic else 0
+        averages_partitions = len(averages_topic.partitions) if averages_topic else 0
+
+    except Exception:
+        kafka_status = "disconnected"
+
+    return {
+        "status": "running",
+        "kafka": kafka_status,
+        "topics": {
+            "truck-telemetry": {
+                "partitions": telemetry_partitions
+    },
+             "truck-averages": {
+                 "partitions": averages_partitions
+    }
+},
+"workers": [
+       {
+           "id": "worker-1",
+           "status": "healthy",
+       }, 
+       {
+            "id": "worker-2",
+            "status": "healthy",
+       }    
+    ],
+    "total_workers": 2
+ }
