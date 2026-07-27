@@ -1,15 +1,3 @@
-<<<<<<< HEAD
-import faust
-
-from .config import (
-    APP_ID,
-    INPUT_TOPIC,
-    KAFKA_BROKER,
-)
-
-from .models import TruckEvent
-
-=======
 import logging
 
 import faust
@@ -17,13 +5,13 @@ import faust
 from .config import (
     APP_ID,
     INPUT_TOPIC,
+    OUTPUT_TOPIC,
     KAFKA_BROKER,
 )
 
-from .models import TruckEvent
+from .models import TruckEvent, TruckAverage
 
 logger = logging.getLogger(__name__)
->>>>>>> origin/main
 
 app = faust.App(
     APP_ID,
@@ -34,9 +22,22 @@ app = faust.App(
 truck_topic = app.topic(
     INPUT_TOPIC,
     value_type=TruckEvent,
-<<<<<<< HEAD
 )
-=======
+
+truck_average_topic = app.topic(
+    OUTPUT_TOPIC,
+    value_type=TruckAverage,
+)
+
+temperature_table = app.Table(
+    "truck_temperature_stats",
+    default=lambda: {
+        "sum": 0.0,
+        "count": 0,
+    },
+).tumbling(
+    300,
+    expires=600,
 )
 
 
@@ -53,4 +54,3 @@ async def process_truck_events(events):
 
 if __name__ == "__main__":
     app.main()
->>>>>>> origin/main
