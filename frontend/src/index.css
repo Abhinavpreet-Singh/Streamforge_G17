@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Leaflet maps need explicit heights and widths */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+}
+
+/* Custom styles for modern dashboard */
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #fafafa;
+  color: #111111;
+}
+
+/* Custom scrollbars for boxy widgets */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
