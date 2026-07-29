@@ -1,6 +1,5 @@
-import React from 'react';
 import { Handle, Position } from 'reactflow';
-import { Activity, ShieldAlert, Cpu, Filter, Layers, Database, Radio, CheckCircle } from 'lucide-react';
+import { Activity, Cpu, Filter, Layers, Database, Radio, CheckCircle } from 'lucide-react';
 
 const iconMap = {
   input: Radio,
