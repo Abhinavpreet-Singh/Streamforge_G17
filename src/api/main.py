@@ -12,7 +12,7 @@ import os
 import sys
 import json
 import uuid
-import signal
+import time
 import shutil
 import logging
 import threading
@@ -20,7 +20,7 @@ import subprocess
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Set, Any
+from typing import Dict, List, Set
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -297,7 +297,6 @@ def kafka_consumer_thread():
         except Exception as e:
             retries += 1
             logger.error("Failed to create Kafka consumer (retry %d): %s", retries, e)
-            import time
             time.sleep(5)
             
     # Rate calculations update interval
@@ -342,7 +341,6 @@ def kafka_consumer_thread():
                 
         except Exception as e:
             logger.error("Error in consumer thread loop: %s", e)
-            import time
             time.sleep(1)
 
 # Helper to run coroutine thread-safe

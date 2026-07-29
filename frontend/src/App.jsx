@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { 
-  Activity, Play, Square, AlertTriangle, Cpu, HardDrive, Terminal, 
-  MapPin, CheckCircle2, ShieldAlert, ArrowRightLeft, RefreshCw 
+  Activity, Play, Square, AlertTriangle, Cpu, Terminal, 
+  MapPin, CheckCircle2, ShieldAlert, RefreshCw 
 } from 'lucide-react';
 import PipelineNode from './components/PipelineNode';
 
@@ -75,7 +75,7 @@ export default function App() {
   const [mapZoom, setMapZoom] = useState(4);
   const [actionLoading, setActionLoading] = useState({});
   const socketRef = useRef(null);
-  
+
   // Track continuous system time for map animation
   const [systemTime, setSystemTime] = useState(0);
   useEffect(() => {
@@ -87,50 +87,50 @@ export default function App() {
 
   // Connect to live WebSocket feed
   useEffect(() => {
-    connectWebSocket();
+    const connect = () => {
+      setWsStatus('connecting');
+      const wsUrl = `ws://${window.location.hostname}:8000/ws/live`;
+
+      console.log(`Connecting to WebSocket at ${wsUrl}...`);
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        setWsStatus('connected');
+        console.log('WebSocket connected!');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const frame = JSON.parse(event.data);
+          if (frame.type === 'telemetry' || frame.type === 'init') {
+            setTelemetry(frame.data);
+            setWorkers(frame.workers);
+          }
+        } catch (e) {
+          console.error('Error parsing WebSocket frame:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setWsStatus('disconnected');
+        console.warn('WebSocket closed. Retrying in 4 seconds...');
+        setTimeout(connect, 4000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        ws.close();
+      };
+    };
+
+    connect();
     return () => {
       if (socketRef.current) {
         socketRef.current.close();
       }
     };
   }, []);
-
-  const connectWebSocket = () => {
-    setWsStatus('connecting');
-    const wsUrl = `ws://${window.location.hostname}:8000/ws/live`;
-    
-    console.log(`Connecting to WebSocket at ${wsUrl}...`);
-    const ws = new WebSocket(wsUrl);
-    socketRef.current = ws;
-
-    ws.onopen = () => {
-      setWsStatus('connected');
-      console.log('WebSocket connected!');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const frame = JSON.parse(event.data);
-        if (frame.type === 'telemetry' || frame.type === 'init') {
-          setTelemetry(frame.data);
-          setWorkers(frame.workers);
-        }
-      } catch (e) {
-        console.error('Error parsing WebSocket frame:', e);
-      }
-    };
-
-    ws.onclose = () => {
-      setWsStatus('disconnected');
-      console.warn('WebSocket closed. Retrying in 4 seconds...');
-      setTimeout(connectWebSocket, 4000);
-    };
-
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-      ws.close();
-    };
-  };
 
   // Spawning / Killing Workers via API
   const handleWorkerAction = async (workerId, action) => {
@@ -406,16 +406,19 @@ export default function App() {
                 url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
               />
               <ChangeMapCenter center={mapCenter} />
-              {animatedTrucks.map((truck) => (
+              {animatedTrucks.map((truck) => {
+                const isSelected = selectedTruck?.truck_id === truck.truck_id;
+                return (
                 <CircleMarker
                   key={truck.truck_id}
                   center={truck.coords}
-                  radius={truck.isAnomalous ? 10 : 6}
+                  radius={isSelected ? 12 : truck.isAnomalous ? 10 : 6}
                   fillColor={truck.isAnomalous ? '#f43f5e' : '#10b981'}
-                  color={truck.isAnomalous ? '#be123c' : '#047857'}
-                  weight={2}
+                  color={isSelected ? '#2563eb' : truck.isAnomalous ? '#be123c' : '#047857'}
+                  weight={isSelected ? 3 : 2}
                   fillOpacity={truck.isAnomalous ? 0.75 : 0.6}
                   className={truck.isAnomalous ? 'animate-pulse' : ''}
+                  eventHandlers={{ click: () => selectTruckOnMap(truck) }}
                 >
                   <Popup>
                     <div className="font-sans text-xs p-1">
@@ -460,7 +463,8 @@ export default function App() {
                     </div>
                   </Popup>
                 </CircleMarker>
-              ))}
+                );
+              })}
             </MapContainer>
           </div>
 
