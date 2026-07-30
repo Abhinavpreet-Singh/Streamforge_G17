@@ -272,11 +272,14 @@ class WorkerManager:
 
 worker_manager = WorkerManager()
 
+# The event loop uvicorn serves WebSocket connections on. The consumer runs in
+# a plain thread, so it can't await sends directly — it hands each broadcast to
+# THIS loop via run_coroutine_threadsafe. Captured at startup (see below), when
+# a running loop actually exists.
+main_loop: asyncio.AbstractEventLoop | None = None
+
 # Background Thread for consuming Kafka events
 def kafka_consumer_thread():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     group_id = f"streamforge-api-{uuid.uuid4()}"
     
@@ -313,14 +316,14 @@ def kafka_consumer_thread():
                 last_rate_update = now
                 
                 # Broadcast state snapshot to all open WebSockets
-                if state.active_connections:
+                if state.active_connections and main_loop is not None:
                     snapshot = {
                         "type": "telemetry",
                         "data": state.get_snapshot(),
                         "workers": worker_manager.get_status()
                     }
-                    # Send via asyncio to thread-safe runner
-                    asyncio.run_coroutine_threadsafe(broadcast_json(snapshot), loop)
+                    # Hand the send to uvicorn's running loop from this thread.
+                    asyncio.run_coroutine_threadsafe(broadcast_json(snapshot), main_loop)
             
             if msg is None:
                 continue
@@ -355,9 +358,14 @@ async def broadcast_json(payload: dict):
     for ws in disconnected:
         state.active_connections.discard(ws)
 
-# Start consumer thread
-consumer_thread_handle = threading.Thread(target=kafka_consumer_thread, daemon=True)
-consumer_thread_handle.start()
+@app.on_event("startup")
+async def start_consumer():
+    # Capture the loop uvicorn is actually running WebSockets on, then start the
+    # consumer. Starting the thread at import time (before this loop exists) is
+    # why broadcasts previously went to a dead loop and never reached clients.
+    global main_loop
+    main_loop = asyncio.get_running_loop()
+    threading.Thread(target=kafka_consumer_thread, daemon=True).start()
 
 # API Endpoints
 @app.get("/health")
