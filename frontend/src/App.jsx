@@ -63,12 +63,17 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState('connecting');
   const [telemetry, setTelemetry] = useState({
     total_readings: 0,
+    total_aggregates: 0,
     ingestion_rate: 0.0,
     filter_rate: 0.0,
+    duplicate_drop_rate: 0.0,
+    aggregate_rate: 0.0,
+    kafka_connected: false,
     recent_readings: [],
     trucks: [],
     anomalies: [],
   });
+  const [stackStatus, setStackStatus] = useState(null);
   const [workers, setWorkers] = useState([]);
   const [selectedTruck, setSelectedTruck] = useState(null);
   const [mapCenter, setMapCenter] = useState([39.8283, -98.5795]); // US geographic center
@@ -83,6 +88,21 @@ export default function App() {
       setSystemTime(t => t + 1);
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Poll stack health (Kafka, Schema Registry, workers)
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch(`http://${window.location.hostname}:8000/api/status`);
+        if (res.ok) setStackStatus(await res.json());
+      } catch {
+        setStackStatus(null);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
   }, []);
 
   // Connect to live WebSocket feed
@@ -184,7 +204,7 @@ export default function App() {
           label: 'Deduplication Stage',
           status: systemActive ? 'active' : 'crashed',
           metricName: 'Duplicate Drops',
-          metricValue: '0/s',
+          metricValue: `${telemetry.duplicate_drop_rate} msg/s`,
           subMetricName: 'Dedup Cache',
           subMetricValue: 'Active (100k cap)'
         },
@@ -284,10 +304,10 @@ export default function App() {
           type: 'output',
           label: 'Final Telemetry Sink',
           status: systemActive ? 'active' : 'crashed',
-          metricName: 'Egress Topic',
-          metricValue: 'truck-averages',
-          subMetricName: 'Sink Format',
-          subMetricValue: 'Avro JSON'
+          metricName: 'Egress Rate',
+          metricValue: `${telemetry.aggregate_rate} msg/s`,
+          subMetricName: 'Total Emitted',
+          subMetricValue: String(telemetry.total_aggregates ?? 0),
         },
         position: { x: 1640, y: 150 },
       },
@@ -362,6 +382,22 @@ export default function App() {
           <div className="bg-neutral-50 px-3 py-1.5 border border-neutral-200 rounded-md">
             <span className="text-neutral-500 mr-2">Anomalies Detected:</span>
             <span className="font-bold text-rose-600">{telemetry.anomalies.length}</span>
+          </div>
+          <div className="bg-neutral-50 px-3 py-1.5 border border-neutral-200 rounded-md">
+            <span className="text-neutral-500 mr-2">Sink Rate:</span>
+            <span className="font-bold text-neutral-900">{telemetry.aggregate_rate} msg/s</span>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] font-mono">
+            {[
+              { label: 'Kafka', ok: stackStatus?.kafka?.status === 'ok' },
+              { label: 'Registry', ok: stackStatus?.schema_registry?.status === 'ok' },
+              { label: 'Workers', ok: (stackStatus?.workers?.running ?? 0) > 0 },
+            ].map(({ label, ok }) => (
+              <span key={label} className={`flex items-center gap-1 ${ok ? 'text-emerald-600' : 'text-neutral-400'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-neutral-300'}`} />
+                {label}
+              </span>
+            ))}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-neutral-500">API Broker:</span>
