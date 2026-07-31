@@ -6,6 +6,7 @@ Exposes endpoints for:
   - Topology metadata (/topology)
   - Prometheus metrics (/metrics)
   - Health check (/health)
+  - Stack status (/api/status)
 """
 
 import os
@@ -27,6 +28,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from prometheus_client import Counter, generate_latest
 from confluent_kafka import Consumer, KafkaError
+
+from src.api.stack_health import build_stack_status
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -55,26 +58,57 @@ class TelemetryState:
     def __init__(self):
         self.lock = threading.Lock()
         self.total_readings = 0
+        self.total_aggregates = 0
         self.ingestion_rate = 0.0
         self.filter_rate = 0.0
-        self.message_times = []  # timestamps of processed messages in last 5s
-        self.recent_readings = []  # List[dict] max 50
-        self.trucks: Dict[int, dict] = {}  # truck_id -> latest telemetry/aggregates
-        self.anomalies = []  # List[dict] max 50
+        self.duplicate_drop_rate = 0.0
+        self.aggregate_rate = 0.0
+        self.message_times = []
+        self.duplicate_times = []
+        self.filtered_times = []
+        self.aggregate_times = []
+        self.recent_readings = []
+        self.trucks: Dict[int, dict] = {}
+        self.anomalies = []
         self.active_connections: Set[WebSocket] = set()
+        self._seen_keys: Set[tuple[int, str]] = set()
+        self._seen_order: list[tuple[int, str]] = []
+        self.kafka_connected = False
+
+    def _track_seen(self, truck_id: int, timestamp: str) -> bool:
+        """Return True if this (truck_id, timestamp) was already observed."""
+        key = (truck_id, timestamp)
+        if key in self._seen_keys:
+            return True
+        self._seen_keys.add(key)
+        self._seen_order.append(key)
+        if len(self._seen_order) > 10_000:
+            oldest = self._seen_order.pop(0)
+            self._seen_keys.discard(oldest)
+        return False
 
     def add_reading(self, reading: dict):
+        truck_id = reading.get("truck_id")
+        temp = reading.get("temperature")
+        ts = reading.get("timestamp")
+        fuel = reading.get("fuel_level")
+        now = time_now_seconds()
+
         with self.lock:
+            if truck_id is None or ts is None:
+                return
+
+            if self._track_seen(truck_id, ts):
+                self.duplicate_times.append(now)
+                return
+
+            if temp is not None and temp <= 0:
+                self.filtered_times.append(now)
+                return
+
             self.total_readings += 1
-            truck_id = reading.get("truck_id")
-            temp = reading.get("temperature")
-            ts = reading.get("timestamp")
-            fuel = reading.get("fuel_level")
-            
-            # Record time for rate calculations
-            self.message_times.append(time_now_seconds())
-            
-            # Update truck baseline
+            self.message_times.append(now)
+
             if truck_id not in self.trucks:
                 self.trucks[truck_id] = {
                     "truck_id": truck_id,
@@ -92,9 +126,7 @@ class TelemetryState:
                 if fuel is not None:
                     self.trucks[truck_id]["fuel_level"] = fuel
 
-            # Anomaly detection (e.g. temperature threshold or z-score alert)
-            # Normal baseline temp is 30-40, let's flag > 42 as anomaly for demo visual impact
-            if temp > 42.0:
+            if temp is not None and temp > 42.0:
                 anomaly = {
                     "truck_id": truck_id,
                     "temperature": temp,
@@ -106,18 +138,20 @@ class TelemetryState:
                 if len(self.anomalies) > 50:
                     self.anomalies.pop(0)
 
-            # Keep recent readings bounded
             self.recent_readings.append(reading)
             if len(self.recent_readings) > 50:
                 self.recent_readings.pop(0)
 
     def add_aggregate(self, aggregate: dict):
         with self.lock:
+            self.total_aggregates += 1
+            self.aggregate_times.append(time_now_seconds())
+
             truck_id = aggregate.get("truck_id")
             w_type = aggregate.get("window_type")
             avg_temp = aggregate.get("average_temperature")
             count = aggregate.get("reading_count")
-            
+
             if truck_id in self.trucks:
                 if w_type == "tumbling":
                     self.trucks[truck_id]["tumbling_avg"] = avg_temp
@@ -125,27 +159,32 @@ class TelemetryState:
                     self.trucks[truck_id]["hopping_avg"] = avg_temp
                 self.trucks[truck_id]["reading_count"] += count
 
+    def _rate_from_times(self, times: list[float], window: float = 5.0) -> float:
+        now = time_now_seconds()
+        kept = [t for t in times if now - t <= window]
+        times[:] = kept
+        return round(len(kept) / window, 2)
+
     def update_rates(self):
         with self.lock:
-            now = time_now_seconds()
-            # Retain only timestamps from the last 5 seconds
-            self.message_times = [t for t in self.message_times if now - t <= 5.0]
-            count = len(self.message_times)
-            self.ingestion_rate = round(count / 5.0, 2)
-            
-            # Simple simulation of filter rate
-            self.filter_rate = round(self.ingestion_rate * 0.05, 2)  # roughly 5% get filtered
+            self.ingestion_rate = self._rate_from_times(self.message_times)
+            self.filter_rate = self._rate_from_times(self.filtered_times)
+            self.duplicate_drop_rate = self._rate_from_times(self.duplicate_times)
+            self.aggregate_rate = self._rate_from_times(self.aggregate_times)
 
     def get_snapshot(self) -> dict:
         with self.lock:
-            # Sort trucks by ID to keep layout consistent
             sorted_trucks = sorted(self.trucks.values(), key=lambda t: t["truck_id"])
             return {
                 "total_readings": self.total_readings,
+                "total_aggregates": self.total_aggregates,
                 "ingestion_rate": self.ingestion_rate,
                 "filter_rate": self.filter_rate,
+                "duplicate_drop_rate": self.duplicate_drop_rate,
+                "aggregate_rate": self.aggregate_rate,
+                "kafka_connected": self.kafka_connected,
                 "recent_readings": list(reversed(self.recent_readings))[:20],
-                "trucks": sorted_trucks[:100],  # cap at 100 for network performance
+                "trucks": sorted_trucks[:100],
                 "anomalies": list(reversed(self.anomalies))[:15],
             }
 
@@ -296,6 +335,7 @@ def kafka_consumer_thread():
                 "enable.auto.commit": True
             })
             consumer.subscribe(["truck-telemetry", "truck-averages"])
+            state.kafka_connected = True
             logger.info("API Kafka Consumer subscribed successfully to truck-telemetry and truck-averages")
         except Exception as e:
             retries += 1
@@ -406,6 +446,16 @@ def topology():
                 {"source": "hopping", "target": "sink"}
             ]
         }
+    }
+
+@app.get("/api/status")
+def api_status():
+    workers = worker_manager.get_status()
+    stack = build_stack_status(workers)
+    return {
+        "time": datetime.now(timezone.utc).isoformat(),
+        "kafka_consumer": "connected" if state.kafka_connected else "disconnected",
+        **stack,
     }
 
 @app.get("/api/workers")
