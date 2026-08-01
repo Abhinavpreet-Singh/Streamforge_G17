@@ -3,6 +3,9 @@ Week 1 — Kafka Foundation (Owner: Team Lead, branch: Abhinavpreet)
 
 Blasts mock IoT truck telemetry (truck_id, temperature, timestamp) into the
 `truck-telemetry` Kafka topic using an idempotent confluent-kafka producer.
+Every message is validated against the registered Avro contract
+(schema/truck_reading.avsc, see scripts/register_schema.py) before it's
+sent, so a malformed reading never reaches the topic in the first place.
 """
 
 from __future__ import annotations
@@ -15,13 +18,20 @@ import signal
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
+import fastavro
 from confluent_kafka import Producer
 
 TOPIC = "truck-telemetry"
+SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "schema" / "truck_reading.avsc"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("truck_producer")
+
+
+def load_schema() -> dict:
+    return fastavro.parse_schema(json.loads(SCHEMA_PATH.read_text()))
 
 
 @dataclass(frozen=True)
@@ -76,6 +86,7 @@ def delivery_report(err, msg) -> None:
 def run(truck_count: int, interval_seconds: float) -> None:
     producer = build_producer()
     simulator = TruckFleetSimulator(truck_count)
+    schema = load_schema()
     running = True
 
     def stop(signum, frame) -> None:
@@ -95,12 +106,16 @@ def run(truck_count: int, interval_seconds: float) -> None:
 
     while running:
         for reading in simulator.next_batch():
+            payload = asdict(reading)
+            if not fastavro.validate(payload, schema, raise_errors=False):
+                logger.error("message failed schema validation, dropping: %s", payload)
+                continue
             # keyed by truck_id so all readings for one truck land on the same
             # partition, in order — required for correct per-truck windowing
             producer.produce(
                 TOPIC,
                 key=str(reading.truck_id).encode("utf-8"),
-                value=reading.to_json(),
+                value=json.dumps(payload).encode("utf-8"),
                 callback=delivery_report,
             )
         producer.poll(0)

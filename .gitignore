@@ -9,3 +9,5 @@ build/
 *.log
 .DS_Store
 rocksdb-data/
+streamforge-data/
+logs/
