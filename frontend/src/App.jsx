@@ -14,40 +14,6 @@ const nodeTypes = {
   pipelineNode: PipelineNode,
 };
 
-// Deterministic baseline coordinate paths for 500 trucks inside USA
-// Maps truck ID to a US city coordinate baseline with minor motion simulation
-function getTruckRoute(truckId) {
-  const seed = (truckId * 12345.67) % 1;
-  // Box limits: USA
-  const baselines = [
-    { lat: 40.7128, lng: -74.0060, name: "New York" },
-    { lat: 34.0522, lng: -118.2437, name: "Los Angeles" },
-    { lat: 41.8781, lng: -87.6298, name: "Chicago" },
-    { lat: 29.7604, lng: -95.3698, name: "Houston" },
-    { lat: 39.7392, lng: -104.9903, name: "Denver" },
-    { lat: 47.6062, lng: -122.3321, name: "Seattle" },
-    { lat: 25.7617, lng: -80.1918, name: "Miami" },
-    { lat: 32.7767, lng: -96.7970, name: "Dallas" },
-  ];
-  
-  const startCity = baselines[Math.floor(seed * baselines.length)];
-  const endCity = baselines[(Math.floor(seed * baselines.length) + 1) % baselines.length];
-  
-  return { startCity, endCity, seed };
-}
-
-function calculateCurrentPosition(truckId, timeSecs) {
-  const { startCity, endCity, seed } = getTruckRoute(truckId);
-  // Speed offset
-  const speed = 0.005 + (seed * 0.01);
-  const progress = (timeSecs * speed + seed) % 1.0;
-  
-  // Interpolate lat/lng
-  const lat = startCity.lat + (endCity.lat - startCity.lat) * progress;
-  const lng = startCity.lng + (endCity.lng - startCity.lng) * progress;
-  
-  return [lat, lng];
-}
 
 // Map center + zoom (react-leaflet MapContainer zoom prop is initial-only)
 function ChangeMapView({ center, zoom }) {
@@ -92,11 +58,6 @@ export default function App() {
   // Track continuous system time for map animation
   const [systemTime, setSystemTime] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSystemTime(t => t + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Poll stack health (Kafka, Schema Registry, workers)
   useEffect(() => {
@@ -142,12 +103,101 @@ export default function App() {
       ws.onerror = () => ws.close();
     };
 
-    connect();
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
+
+
+    ws.onmessage = (event) => {
+
+
+      try {
+
+
+        const message = JSON.parse(event.data);
+        const data = message.data || message;
+        console.log("WS DATA:", data);
+        const newPoint = {
+        time: new Date().toLocaleTimeString(),
+        ingestion: data.ingestion_rate,
+        filtered: data.filter_rate
+       };
+       setHistory(prev => [...prev, newPoint].slice(-60));
+       
+
+        if(data.ingestion_rate !== undefined)
+        {
+
+
+          setCurrentRate(
+            data.ingestion_rate
+          );
+
+
+
+          setThroughputHistory(prev => [
+
+            ...prev,
+
+            {
+
+              time:
+                new Date()
+                .toLocaleTimeString(),
+
+              ingestion:
+                data.ingestion_rate,
+
+
+              filtered:
+                data.filter_rate || 0
+
+            }
+
+          ].slice(-60));
+
+
+        }
+
+
+
       }
+
+      catch(error){
+
+        console.log(
+          "WS parse error",
+          error
+        );
+
+      }
+
+
     };
+
+
+
+    ws.onerror = (error)=>{
+      console.log(
+        "WebSocket error",
+        error
+      );
+    };
+
+
+
+    ws.onclose = ()=>{
+      console.log(
+        "WebSocket closed"
+      );
+    };
+
+
+
+    return ()=>{
+
+      ws.close();
+
+    };
+
+
   }, []);
 
   // Spawning / Killing Workers via API
@@ -347,18 +397,6 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-50 overflow-hidden font-sans">
-      {/* Header Panel */}
-      <header className="flex justify-between items-center px-6 py-4 bg-white border-b border-neutral-200 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-neutral-900 text-white rounded-lg">
-            <Activity size={20} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-neutral-900">StreamForge Telemetry</h1>
-            <p className="text-xs text-neutral-500 font-mono">Axlero Solutions Event Pipeline Console</p>
-          </div>
-        </div>
 
         {/* Real-time stats */}
         <div className="flex items-center gap-6 text-xs font-mono">
@@ -647,12 +685,44 @@ export default function App() {
             </div>
           </div>
         </div>
-      </main>
+
+
+
+      </div>
+
+
+
+
+
+
+
+      {/* React Flow topology */}
+
+
+      <div
+        style={{
+          width:"100%",
+          height:"600px"
+        }}
+      >
+
+        <ReactFlow
+          nodes={flowNodes}
+          edges={flowEdges}
+          fitView
+        />
+
+      </div>
+
+
+
     </div>
+
+
   );
+
 }
 
-function roundValue(value, decimals = 2) {
-  if (value === undefined || value === null) return 0;
-  return Number(Math.round(value + 'e' + decimals) + 'e-' + decimals);
-}
+
+
+export default App;
