@@ -30,6 +30,11 @@ from prometheus_client import Counter, generate_latest
 from confluent_kafka import Consumer, KafkaError
 
 from src.api.stack_health import build_stack_status
+from src.stream_processor.config import (
+    APP_ID,
+    HOPPING_STEP_SECONDS,
+    WINDOW_SIZE_SECONDS,
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -184,7 +189,7 @@ class TelemetryState:
                 "aggregate_rate": self.aggregate_rate,
                 "kafka_connected": self.kafka_connected,
                 "recent_readings": list(reversed(self.recent_readings))[:20],
-                "trucks": sorted_trucks[:100],
+                "trucks": sorted_trucks[:200],
                 "anomalies": list(reversed(self.anomalies))[:15],
             }
 
@@ -193,12 +198,34 @@ def time_now_seconds() -> float:
 
 state = TelemetryState()
 
+def resolve_python_exe() -> str:
+    win = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+    unix = REPO_ROOT / ".venv" / "bin" / "python"
+    if win.exists():
+        return str(win)
+    if unix.exists():
+        return str(unix)
+    return shutil.which("python") or shutil.which("python3") or "python"
+
+
+def faust_state_dirs() -> List[Path]:
+    return [
+        REPO_ROOT / f"{APP_ID}-dat",
+        REPO_ROOT / "streamforge-dat",
+        REPO_ROOT / "streamforge-data",
+    ]
+
+
 # Worker Manager class
 class WorkerManager:
     def __init__(self):
         self.workers = {
-            "worker-1": {"proc": None, "port": 6066, "status": "stopped", "pid": None},
-            "worker-2": {"proc": None, "port": 6067, "status": "stopped", "pid": None}
+            "stream-processor": {
+                "proc": None,
+                "status": "stopped",
+                "pid": None,
+                "label": "Faust Stream Processor",
+            },
         }
         self.lock = threading.Lock()
 
@@ -206,37 +233,38 @@ class WorkerManager:
         with self.lock:
             if name not in self.workers:
                 return False
-            
+
             if self.workers[name]["status"] == "running":
                 return True
 
             logger.info("Spawning worker subprocess for %s...", name)
-            
-            # Subprocess paths and arguments
-            python_exe = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
-            if not python_exe.exists():
-                python_exe = "python" # fallback to system python
-                
+
             cmd = [
-                str(python_exe), "-m", "src.stream_processor.topology",
-                "worker", 
-                "-l", "info", 
-                "--without-web"
+                resolve_python_exe(),
+                "-m",
+                "src.stream_processor.topology",
+                "worker",
+                "-l",
+                "info",
+                "--without-web",
             ]
-            
-            # Log output to file
+
             log_dir = REPO_ROOT / "logs"
             log_dir.mkdir(exist_ok=True)
             log_file = open(log_dir / f"{name}.log", "a")
-            
-            # Start process
+
+            child_env = os.environ.copy()
+            if "DEMO_MODE" not in child_env:
+                child_env["DEMO_MODE"] = "1"
+
             try:
                 proc = subprocess.Popen(
                     cmd,
                     cwd=str(REPO_ROOT),
                     stdout=log_file,
                     stderr=log_file,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+                    env=child_env,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
                 )
                 self.workers[name]["proc"] = proc
                 self.workers[name]["pid"] = proc.pid
@@ -247,39 +275,36 @@ class WorkerManager:
                 logger.error("Failed to start worker %s: %s", name, e)
                 return False
 
-    def kill_worker(self, name: str) -> bool:
+    def kill_worker(self, name: str, wipe_state: bool = True) -> bool:
         with self.lock:
             if name not in self.workers:
                 return False
-            
+
             w = self.workers[name]
             proc = w["proc"]
-            
+
             if proc is not None:
                 logger.warning("Killing worker %s (PID %d)...", name, w["pid"])
                 try:
-                    # Abrupt SIGKILL (terminate and kill)
                     proc.kill()
                     proc.wait(timeout=2.0)
                 except Exception as e:
                     logger.error("Error waiting for worker kill: %s", e)
                 w["proc"] = None
                 w["pid"] = None
-                
+
             w["status"] = "stopped"
-            
-            # Simulate total disk loss for RocksDB local cache
-            # Faust data is located in streamforge-data/
-            # We delete the specific worker state subfolder to force Kafka changelog restore
-            data_dir = REPO_ROOT / "streamforge-data"
-            if data_dir.exists():
-                logger.info("Deleting local cache directory to force changelog restore on next boot")
-                try:
-                    # Clean up local rocksdb files for the app
-                    shutil.rmtree(data_dir, ignore_errors=True)
-                except Exception as e:
-                    logger.error("Failed to delete local state cache: %s", e)
-                    
+
+            # Chaos: wipe Faust local state dirs (simulated disk loss on crash)
+            if wipe_state:
+                for data_dir in faust_state_dirs():
+                    if data_dir.exists():
+                        logger.info("Removing Faust state dir %s", data_dir)
+                        try:
+                            shutil.rmtree(data_dir, ignore_errors=True)
+                        except Exception as e:
+                            logger.error("Failed to delete state dir %s: %s", data_dir, e)
+
             logger.info("Worker %s is terminated", name)
             return True
 
@@ -288,26 +313,23 @@ class WorkerManager:
             status_list = []
             for name, w in self.workers.items():
                 proc = w["proc"]
-                # Verify if still running
-                if proc is not None:
-                    if proc.poll() is not None:
-                        # Process terminated on its own
-                        w["status"] = "stopped"
-                        w["pid"] = None
-                        w["proc"] = None
-                
+                if proc is not None and proc.poll() is not None:
+                    w["status"] = "stopped"
+                    w["pid"] = None
+                    w["proc"] = None
+
                 status_list.append({
                     "id": name,
+                    "label": w.get("label", name),
                     "status": w["status"],
                     "pid": w["pid"],
-                    "port": w["port"],
-                    "partitions": "0-9" if name == "worker-1" else "10-19" # split partitions
+                    "role": "dedup → filter → map → tumbling + hopping → truck-averages",
                 })
             return status_list
 
     def shutdown_all(self):
         for name in list(self.workers.keys()):
-            self.kill_worker(name)
+            self.kill_worker(name, wipe_state=False)
 
 worker_manager = WorkerManager()
 
@@ -419,19 +441,26 @@ def metrics():
 
 @app.get("/topology")
 def topology():
+    tumble_label = f"Tumbling Aggregate ({WINDOW_SIZE_SECONDS}s)"
+    hop_label = f"Hopping Aggregate ({WINDOW_SIZE_SECONDS}s / {HOPPING_STEP_SECONDS}s)"
     return {
         "status": "active",
+        "pipeline": {
+            "app_id": APP_ID,
+            "window_size_seconds": WINDOW_SIZE_SECONDS,
+            "hopping_step_seconds": HOPPING_STEP_SECONDS,
+        },
         "dag": {
             "nodes": [
                 {"id": "ingest", "label": "Kafka Ingest (truck-telemetry)", "type": "input"},
                 {"id": "dedup", "label": "Deduplication", "type": "process"},
                 {"id": "filter", "label": "Temperature Filter (>0°C)", "type": "process"},
                 {"id": "map", "label": "Normalize Event", "type": "process"},
-                {"id": "tumbling", "label": "Tumbling Aggregate (5m)", "type": "window"},
-                {"id": "hopping", "label": "Hopping Aggregate (5m/1m)", "type": "window"},
-                {"id": "rocksdb", "label": "RocksDB Cache", "type": "storage"},
-                {"id": "changelog", "label": "Kafka Changelog (truck-state-changelog)", "type": "storage"},
-                {"id": "sink", "label": "Kafka Output (truck-averages)", "type": "output"}
+                {"id": "tumbling", "label": tumble_label, "type": "window"},
+                {"id": "hopping", "label": hop_label, "type": "window"},
+                {"id": "state", "label": "Faust State Tables", "type": "storage"},
+                {"id": "changelog", "label": "Changelog (recovery demos)", "type": "storage"},
+                {"id": "sink", "label": "Kafka Output (truck-averages)", "type": "output"},
             ],
             "edges": [
                 {"source": "ingest", "target": "dedup"},
@@ -439,13 +468,28 @@ def topology():
                 {"source": "filter", "target": "map"},
                 {"source": "map", "target": "tumbling"},
                 {"source": "map", "target": "hopping"},
-                {"source": "tumbling", "target": "rocksdb"},
-                {"source": "hopping", "target": "rocksdb"},
-                {"source": "rocksdb", "target": "changelog"},
+                {"source": "tumbling", "target": "state"},
+                {"source": "hopping", "target": "state"},
                 {"source": "tumbling", "target": "sink"},
-                {"source": "hopping", "target": "sink"}
-            ]
-        }
+                {"source": "hopping", "target": "sink"},
+            ],
+        },
+    }
+
+@app.get("/api/status")
+def api_status():
+    workers = worker_manager.get_status()
+    stack = build_stack_status(workers)
+    return {
+        "time": datetime.now(timezone.utc).isoformat(),
+        "kafka_consumer": "connected" if state.kafka_connected else "disconnected",
+        "pipeline": {
+            "app_id": APP_ID,
+            "window_size_seconds": WINDOW_SIZE_SECONDS,
+            "hopping_step_seconds": HOPPING_STEP_SECONDS,
+            "demo_mode": os.getenv("DEMO_MODE", "").lower() in ("1", "true", "yes"),
+        },
+        **stack,
     }
 
 @app.get("/api/status")
