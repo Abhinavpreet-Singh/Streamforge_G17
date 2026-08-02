@@ -7,6 +7,7 @@ import {
   MapPin, CheckCircle2, ShieldAlert, RefreshCw 
 } from 'lucide-react';
 import PipelineNode from './components/PipelineNode';
+import { apiUrl, wsLiveUrl } from './lib/api';
 
 // Set custom React Flow node types
 const nodeTypes = {
@@ -48,15 +49,22 @@ function calculateCurrentPosition(truckId, timeSecs) {
   return [lat, lng];
 }
 
-// Map center adjustment component
-function ChangeMapCenter({ center }) {
+// Map center + zoom (react-leaflet MapContainer zoom prop is initial-only)
+function ChangeMapView({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
     if (center) {
-      map.setView(center, map.getZoom());
+      map.setView(center, zoom ?? map.getZoom());
     }
-  }, [center, map]);
+  }, [center, zoom, map]);
   return null;
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.round(seconds / 60);
+  return `${m} min`;
 }
 
 export default function App() {
@@ -94,7 +102,7 @@ export default function App() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`http://${window.location.hostname}:8000/api/status`);
+        const res = await fetch(apiUrl('/api/status'));
         if (res.ok) setStackStatus(await res.json());
       } catch {
         setStackStatus(null);
@@ -109,16 +117,10 @@ export default function App() {
   useEffect(() => {
     const connect = () => {
       setWsStatus('connecting');
-      const wsUrl = `ws://${window.location.hostname}:8000/ws/live`;
-
-      console.log(`Connecting to WebSocket at ${wsUrl}...`);
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsLiveUrl());
       socketRef.current = ws;
 
-      ws.onopen = () => {
-        setWsStatus('connected');
-        console.log('WebSocket connected!');
-      };
+      ws.onopen = () => setWsStatus('connected');
 
       ws.onmessage = (event) => {
         try {
@@ -134,14 +136,10 @@ export default function App() {
 
       ws.onclose = () => {
         setWsStatus('disconnected');
-        console.warn('WebSocket closed. Retrying in 4 seconds...');
         setTimeout(connect, 4000);
       };
 
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
-      };
+      ws.onerror = () => ws.close();
     };
 
     connect();
@@ -156,31 +154,33 @@ export default function App() {
   const handleWorkerAction = async (workerId, action) => {
     setActionLoading(prev => ({ ...prev, [workerId]: true }));
     try {
-      const response = await fetch(`http://${window.location.hostname}:8000/api/workers/${workerId}/${action}`, {
-        method: 'POST',
-      });
+      const response = await fetch(apiUrl(`/api/workers/${workerId}/${action}`), { method: 'POST' });
       const data = await response.json();
-      console.log(`Worker ${workerId} ${action} returned:`, data);
-      
-      // Update local workers state immediately before next WS poll
-      setWorkers(prev => prev.map(w => w.id === workerId ? { ...w, status: action === 'start' ? 'running' : 'stopped' } : w));
-    } catch (e) {
-      console.error(`Failed to perform ${action} on ${workerId}:`, e);
+      if (!response.ok || !data.success) {
+        throw new Error(data.status || 'Worker action failed');
+      }
+      setWorkers(prev =>
+        prev.map(w =>
+          w.id === workerId ? { ...w, status: action === 'start' ? 'running' : 'stopped', pid: action === 'start' ? w.pid : null } : w
+        )
+      );
+    } catch {
+      // WS frame will reconcile; don't optimistically flip on failure
     } finally {
       setActionLoading(prev => ({ ...prev, [workerId]: false }));
     }
   };
 
-  // Check if workers are running
-  const w1Running = workers.find(w => w.id === 'worker-1')?.status === 'running';
-  const w2Running = workers.find(w => w.id === 'worker-2')?.status === 'running';
-  const systemActive = w1Running || w2Running;
+  const processorRunning = workers.some(w => w.status === 'running');
+  const ingestLive = telemetry.kafka_connected || telemetry.ingestion_rate > 0;
+  const pipelineActive = processorRunning;
+  const windowSec = stackStatus?.pipeline?.window_size_seconds ?? 300;
+  const hopSec = stackStatus?.pipeline?.hopping_step_seconds ?? 60;
+  const tumbleLabel = formatDuration(windowSec);
+  const hopLabel = `${formatDuration(windowSec)} / ${formatDuration(hopSec)} step`;
 
   // React Flow Node & Edge layout
   const nodes = useMemo(() => {
-    const isW1Active = w1Running;
-    const isW2Active = w2Running;
-    
     return [
       {
         id: 'ingest',
@@ -188,11 +188,11 @@ export default function App() {
         data: {
           type: 'input',
           label: 'Kafka Telemetry Ingestion',
-          status: systemActive ? 'active' : 'crashed',
+          status: ingestLive ? 'active' : 'crashed',
           metricName: 'Throughput',
           metricValue: `${telemetry.ingestion_rate} msg/s`,
           subMetricName: 'Topic',
-          subMetricValue: 'truck-telemetry'
+          subMetricValue: 'truck-telemetry',
         },
         position: { x: 50, y: 150 },
       },
@@ -202,11 +202,11 @@ export default function App() {
         data: {
           type: 'process',
           label: 'Deduplication Stage',
-          status: systemActive ? 'active' : 'crashed',
+          status: pipelineActive ? 'active' : 'crashed',
           metricName: 'Duplicate Drops',
           metricValue: `${telemetry.duplicate_drop_rate} msg/s`,
           subMetricName: 'Dedup Cache',
-          subMetricValue: 'Active (100k cap)'
+          subMetricValue: '100k cap (Faust)',
         },
         position: { x: 300, y: 150 },
       },
@@ -215,12 +215,12 @@ export default function App() {
         type: 'pipelineNode',
         data: {
           type: 'filter',
-          label: 'Filter Anomalies (>0°C)',
-          status: systemActive ? 'active' : 'crashed',
+          label: 'Temperature Filter (>0°C)',
+          status: pipelineActive ? 'active' : 'crashed',
           metricName: 'Filtered Out',
           metricValue: `${telemetry.filter_rate} msg/s`,
           subMetricName: 'Filter Logic',
-          subMetricValue: 'temperature > 0'
+          subMetricValue: 'temperature > 0',
         },
         position: { x: 550, y: 150 },
       },
@@ -230,26 +230,25 @@ export default function App() {
         data: {
           type: 'process',
           label: 'Normalization & Parsing',
-          status: systemActive ? 'active' : 'crashed',
+          status: pipelineActive ? 'active' : 'crashed',
           metricName: 'Parsed Events',
           metricValue: `${Math.max(0, roundValue(telemetry.ingestion_rate - telemetry.filter_rate, 2))} msg/s`,
           subMetricName: 'Schema',
-          subMetricValue: 'NormalizedReading'
+          subMetricValue: 'NormalizedReading',
         },
         position: { x: 800, y: 150 },
       },
-      // Windows
       {
         id: 'tumbling',
         type: 'pipelineNode',
         data: {
           type: 'window',
           label: 'Tumbling Averages',
-          status: isW1Active ? 'active' : 'crashed',
-          metricName: 'Window Size',
-          metricValue: '5 Min (Tumble)',
-          subMetricName: 'Worker Allocation',
-          subMetricValue: 'Worker 1 (P 0-9)'
+          status: pipelineActive ? 'active' : 'crashed',
+          metricName: 'Window',
+          metricValue: tumbleLabel,
+          subMetricName: 'Faust table',
+          subMetricValue: 'tumbling-temperature',
         },
         position: { x: 1080, y: 50 },
       },
@@ -259,26 +258,25 @@ export default function App() {
         data: {
           type: 'window',
           label: 'Hopping Averages',
-          status: isW2Active ? 'active' : 'crashed',
-          metricName: 'Window Size',
-          metricValue: '5m / 1m Step',
-          subMetricName: 'Worker Allocation',
-          subMetricValue: 'Worker 2 (P 10-19)'
+          status: pipelineActive ? 'active' : 'crashed',
+          metricName: 'Window',
+          metricValue: hopLabel,
+          subMetricName: 'Faust table',
+          subMetricValue: 'hopping-temperature',
         },
         position: { x: 1080, y: 250 },
       },
-      // RocksDB & Changelog
       {
-        id: 'rocksdb',
+        id: 'state',
         type: 'pipelineNode',
         data: {
           type: 'storage',
-          label: 'RocksDB Local Cache',
-          status: systemActive ? 'active' : 'crashed',
-          metricName: 'Local Database',
-          metricValue: 'rdict (RocksDB)',
-          subMetricName: 'Data Path',
-          subMetricValue: './streamforge-data'
+          label: 'Faust State Tables',
+          status: pipelineActive ? 'active' : 'crashed',
+          metricName: 'Backend',
+          metricValue: 'In-memory + disk',
+          subMetricName: 'Faust store',
+          subMetricValue: `${stackStatus?.pipeline?.app_id ?? 'streamforge'}-dat`,
         },
         position: { x: 1360, y: 50 },
       },
@@ -287,23 +285,22 @@ export default function App() {
         type: 'pipelineNode',
         data: {
           type: 'storage',
-          label: 'Kafka Compacted Changelog',
-          status: systemActive ? 'active' : 'crashed',
-          metricName: 'Replication Source',
-          metricValue: 'Compact Queue',
-          subMetricName: 'Changelog Topic',
-          subMetricValue: 'truck-state-changelog'
+          label: 'Changelog Recovery',
+          status: pipelineActive ? 'active' : 'crashed',
+          metricName: 'Topic',
+          metricValue: 'truck-state-changelog',
+          subMetricName: 'Used in',
+          subMetricValue: 'chaos_recovery_demo',
         },
         position: { x: 1360, y: 250 },
       },
-      // Sinks
       {
         id: 'sink',
         type: 'pipelineNode',
         data: {
           type: 'output',
-          label: 'Final Telemetry Sink',
-          status: systemActive ? 'active' : 'crashed',
+          label: 'Kafka Output Sink',
+          status: pipelineActive ? 'active' : 'crashed',
           metricName: 'Egress Rate',
           metricValue: `${telemetry.aggregate_rate} msg/s`,
           subMetricName: 'Total Emitted',
@@ -312,29 +309,23 @@ export default function App() {
         position: { x: 1640, y: 150 },
       },
     ];
-  }, [telemetry, w1Running, w2Running, systemActive]);
+  }, [telemetry, pipelineActive, ingestLive, tumbleLabel, hopLabel, stackStatus]);
 
   const edges = useMemo(() => {
-    const isW1Active = w1Running;
-    const isW2Active = w2Running;
-    
+    const stroke = pipelineActive ? '#171717' : '#d4d4d4';
+    const dashStroke = pipelineActive ? '#10b981' : '#d4d4d4';
     return [
-      { id: 'e1', source: 'ingest', target: 'dedup', animated: systemActive, style: { stroke: systemActive ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      { id: 'e2', source: 'dedup', target: 'filter', animated: systemActive, style: { stroke: systemActive ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      { id: 'e3', source: 'filter', target: 'map', animated: systemActive, style: { stroke: systemActive ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      
-      { id: 'e4', source: 'map', target: 'tumbling', animated: isW1Active, style: { stroke: isW1Active ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      { id: 'e5', source: 'map', target: 'hopping', animated: isW2Active, style: { stroke: isW2Active ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      
-      { id: 'e6', source: 'tumbling', target: 'rocksdb', animated: isW1Active, style: { stroke: isW1Active ? '#10b981' : '#d4d4d4', strokeWidth: 2, strokeDasharray: '5,5' } },
-      { id: 'e7', source: 'hopping', target: 'rocksdb', animated: isW2Active, style: { stroke: isW2Active ? '#10b981' : '#d4d4d4', strokeWidth: 2, strokeDasharray: '5,5' } },
-      
-      { id: 'e8', source: 'rocksdb', target: 'changelog', animated: systemActive, style: { stroke: systemActive ? '#059669' : '#d4d4d4', strokeWidth: 2 } },
-      
-      { id: 'e9', source: 'tumbling', target: 'sink', animated: isW1Active, style: { stroke: isW1Active ? '#000' : '#d4d4d4', strokeWidth: 2 } },
-      { id: 'e10', source: 'hopping', target: 'sink', animated: isW2Active, style: { stroke: isW2Active ? '#000' : '#d4d4d4', strokeWidth: 2 } },
+      { id: 'e1', source: 'ingest', target: 'dedup', animated: ingestLive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e2', source: 'dedup', target: 'filter', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e3', source: 'filter', target: 'map', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e4', source: 'map', target: 'tumbling', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e5', source: 'map', target: 'hopping', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e6', source: 'tumbling', target: 'state', animated: pipelineActive, style: { stroke: dashStroke, strokeWidth: 2, strokeDasharray: '5,5' } },
+      { id: 'e7', source: 'hopping', target: 'state', animated: pipelineActive, style: { stroke: dashStroke, strokeWidth: 2, strokeDasharray: '5,5' } },
+      { id: 'e9', source: 'tumbling', target: 'sink', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
+      { id: 'e10', source: 'hopping', target: 'sink', animated: pipelineActive, style: { stroke, strokeWidth: 2 } },
     ];
-  }, [w1Running, w2Running, systemActive]);
+  }, [pipelineActive, ingestLive]);
 
   // Map truck objects with calculated coordinates
   const animatedTrucks = useMemo(() => {
@@ -420,7 +411,10 @@ export default function App() {
           <div className="p-4 border-b border-neutral-200 bg-white z-10 flex justify-between items-center">
             <div className="flex items-center gap-2 text-neutral-800">
               <MapPin size={16} />
-              <h2 className="text-sm font-semibold">Digital Fleet Twin Map</h2>
+              <div>
+                <h2 className="text-sm font-semibold">Fleet Map</h2>
+                <p className="text-[10px] text-neutral-400 font-mono">Simulated routes · deterministic per truck ID</p>
+              </div>
             </div>
             <button 
               onClick={() => { setMapCenter([39.8283, -98.5795]); setMapZoom(4); }}
@@ -441,7 +435,7 @@ export default function App() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
               />
-              <ChangeMapCenter center={mapCenter} />
+              <ChangeMapView center={mapCenter} zoom={mapZoom} />
               {animatedTrucks.map((truck) => {
                 const isSelected = selectedTruck?.truck_id === truck.truck_id;
                 return (
@@ -471,21 +465,15 @@ export default function App() {
                             </td>
                           </tr>
                           <tr>
-                            <td className="pr-3 py-0.5 text-neutral-400">Fuel Level:</td>
-                            <td className="font-bold py-0.5 text-neutral-900">
-                              {truck.fuel_level ? `${truck.fuel_level.toFixed(1)}%` : 'N/A'}
-                            </td>
-                          </tr>
-                          <tr>
                             <td className="pr-3 py-0.5 text-neutral-400">Tumble Avg:</td>
                             <td className="font-bold py-0.5 text-neutral-900">
-                              {truck.tumbling_avg ? `${truck.tumbling_avg.toFixed(2)} °C` : 'Calculating...'}
+                              {truck.tumbling_avg != null ? `${truck.tumbling_avg.toFixed(2)} °C` : `pending (${tumbleLabel})`}
                             </td>
                           </tr>
                           <tr>
                             <td className="pr-3 py-0.5 text-neutral-400">Hopping Avg:</td>
                             <td className="font-bold py-0.5 text-neutral-900">
-                              {truck.hopping_avg ? `${truck.hopping_avg.toFixed(2)} °C` : 'Calculating...'}
+                              {truck.hopping_avg != null ? `${truck.hopping_avg.toFixed(2)} °C` : `pending (${hopLabel})`}
                             </td>
                           </tr>
                           <tr>
@@ -560,10 +548,15 @@ export default function App() {
 
               {workers.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center text-xs font-mono text-neutral-400">
-                  Worker status unavailable. Run backend API.
+                  Run API on port 8000 to manage workers.
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
+                  {!processorRunning && (
+                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-3 py-2 leading-relaxed">
+                      Start the stream processor, then run the producer. Window averages appear after {tumbleLabel}.
+                    </p>
+                  )}
                   {workers.map((worker) => {
                     const isRunning = worker.status === 'running';
                     const loading = actionLoading[worker.id];
@@ -581,7 +574,7 @@ export default function App() {
                             <div className={`w-2.5 h-2.5 rounded-full ${
                               isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
                             }`} />
-                            <span className="font-bold text-neutral-800 uppercase">{worker.id}</span>
+                            <span className="font-bold text-neutral-800">{worker.label || worker.id}</span>
                           </div>
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
                             isRunning 
@@ -592,10 +585,9 @@ export default function App() {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 text-[10px] text-neutral-500 gap-1 mt-1 border-t border-neutral-50 pt-2">
-                          <div>PID: <span className="font-bold text-neutral-700">{worker.pid || 'N/A'}</span></div>
-                          <div>Port: <span className="font-bold text-neutral-700">{worker.port}</span></div>
-                          <div className="col-span-2">Partitions: <span className="font-bold text-neutral-700">{worker.partitions}</span></div>
+                        <div className="grid grid-cols-1 text-[10px] text-neutral-500 gap-1 mt-1 border-t border-neutral-50 pt-2">
+                          <div>PID: <span className="font-bold text-neutral-700">{worker.pid || '—'}</span></div>
+                          <div className="text-neutral-400 leading-snug">{worker.role || worker.label}</div>
                         </div>
 
                         <div className="flex gap-2 mt-2">

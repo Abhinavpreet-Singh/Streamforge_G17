@@ -126,8 +126,9 @@ def run(truck_count: int, interval_seconds: float) -> None:
 
 
 def main() -> None:
-    truck_count = int(os.getenv("TRUCK_COUNT", "500"))
-    interval_seconds = float(os.getenv("PRODUCE_INTERVAL_SECONDS", "10"))
+    demo = os.getenv("DEMO_MODE", "").lower() in ("1", "true", "yes")
+    truck_count = int(os.getenv("TRUCK_COUNT", "100" if demo else "500"))
+    interval_seconds = float(os.getenv("PRODUCE_INTERVAL_SECONDS", "2" if demo else "10"))
     run(truck_count, interval_seconds)
 
 

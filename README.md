@@ -79,24 +79,28 @@ bash scripts/create_topics.sh                         # Git Bash / WSL
 ## Run & Verify
 
 ```bash
+# Demo mode (30s windows, 100 trucks, 2s producer interval)
+set DEMO_MODE=1          # Windows cmd
+$env:DEMO_MODE="1"       # PowerShell
+
+# Quick stack check
+python scripts/check_stack.py
+
+# One-shot demo guide (Windows)
+.\scripts\run_demo.ps1
+
 # Tests
 pytest tests/ -q
 
-# Pipeline
-python -m src.producer.truck_producer                              # ingest
-python -m src.stream_processor.topology worker -l info --without-web  # process
-uvicorn src.api.main:app --reload --port 8000                      # API
-
-# Audits
-python scripts/load_test_producer.py 20 10000 --workers 10         # throughput
-python scripts/chaos_recovery_demo.py 20 5                           # crash recovery
-python scripts/exactly_once_demo.py                                # dedup proof
-
-# Dashboard
+# Pipeline (3 terminals)
+python -m src.producer.truck_producer
+uvicorn src.api.main:app --reload --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-**Demo:** stack up → producer → API → `npm run dev` → start workers from the chaos panel → watch map + DAG via `/ws/live`.
+Open **http://localhost:5173** → Start **Faust Stream Processor** in chaos panel → watch map, DAG, and live feed.
+
+**Note:** Vite proxies `/api` and `/ws` to `:8000` — only port 5173 needed in the browser during dev.
 
 ---
 
