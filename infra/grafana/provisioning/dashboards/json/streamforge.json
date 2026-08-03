@@ -1,0 +1,33 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API Telemetry Messages",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(telemetry_messages_total[1m])",
+          "legendFormat": "messages/s"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Health Checks",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(health_requests_total[1m])",
+          "legendFormat": "health/s"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "title": "StreamForge API",
+  "uid": "streamforge-api",
+  "version": 1
+}
