@@ -14,8 +14,10 @@ until docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server 
 done
 
 bash scripts/create_topics.sh
+python scripts/register_schema.py
 
 echo "Done. Activate the venv with: source .venv/bin/activate"
+echo "Validate dataset: python scripts/validate_dataset.py"
 echo "Kafka UI:    http://localhost:8080"
 echo "Prometheus:  http://localhost:9090"
 echo "Grafana:     http://localhost:3001"

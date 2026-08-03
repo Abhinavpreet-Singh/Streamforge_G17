@@ -8,6 +8,7 @@ Set-Location $Root
 
 $env:DEMO_MODE = "1"
 
+Write-Host "==> Tip: copy .env.example to .env for persistent demo settings"
 Write-Host "==> Checking Docker stack..."
 docker compose up -d
 
