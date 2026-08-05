@@ -293,6 +293,12 @@ export default function App() {
             <span className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-emerald-500 animate-ping' : 'bg-amber-500 animate-pulse'}`} />
             {wsStatus.toUpperCase()}
           </span>
+          <a href="http://localhost:3001/d/streamforge-api" target="_blank" rel="noreferrer" className="px-2 py-1 rounded border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-600">
+            Grafana
+          </a>
+          <a href="http://localhost:9090/targets" target="_blank" rel="noreferrer" className="px-2 py-1 rounded border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-600">
+            Prometheus
+          </a>
         </div>
       </header>
 
