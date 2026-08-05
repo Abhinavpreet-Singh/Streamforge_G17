@@ -26,7 +26,7 @@ from typing import Dict, List, Set
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from prometheus_client import Counter, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 from confluent_kafka import Consumer, KafkaError
 
 from src.api.stack_health import build_stack_status
@@ -51,9 +51,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus metrics
+# Prometheus metrics (scraped at /metrics by infra/prometheus.yml → Grafana)
 health_counter = Counter("health_requests_total", "Total requests to /health")
-telemetry_counter = Counter("telemetry_messages_total", "Total telemetry messages consumed")
+telemetry_counter = Counter("telemetry_messages_total", "Raw truck-telemetry messages consumed")
+aggregate_counter = Counter("streamforge_aggregates_total", "truck-averages sink messages consumed")
+
+ingestion_rate_gauge = Gauge("streamforge_ingestion_rate", "Filtered readings per second (5s window)")
+filter_rate_gauge = Gauge("streamforge_filter_rate", "Filtered-out events per second")
+duplicate_drop_rate_gauge = Gauge("streamforge_duplicate_drop_rate", "Duplicate drops per second")
+aggregate_rate_gauge = Gauge("streamforge_aggregate_rate", "Sink aggregates per second")
+total_readings_gauge = Gauge("streamforge_total_readings", "Cumulative readings after dedup/filter")
+total_aggregates_gauge = Gauge("streamforge_total_aggregates", "Cumulative sink messages")
+active_trucks_gauge = Gauge("streamforge_active_trucks", "Distinct trucks in API state")
+anomalies_gauge = Gauge("streamforge_anomalies", "Anomaly alerts in rolling buffer")
+websocket_connections_gauge = Gauge("streamforge_websocket_connections", "Active dashboard WebSocket clients")
+kafka_connected_gauge = Gauge("streamforge_kafka_connected", "1 if API Kafka consumer is connected")
+workers_running_gauge = Gauge("streamforge_workers_running", "Stream processor workers in running state")
 
 # Workspace root
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -176,6 +189,7 @@ class TelemetryState:
             self.filter_rate = self._rate_from_times(self.filtered_times)
             self.duplicate_drop_rate = self._rate_from_times(self.duplicate_times)
             self.aggregate_rate = self._rate_from_times(self.aggregate_times)
+            sync_prometheus_gauges_locked(self)
 
     def get_snapshot(self) -> dict:
         with self.lock:
@@ -192,6 +206,20 @@ class TelemetryState:
                 "trucks": sorted_trucks[:200],
                 "anomalies": list(reversed(self.anomalies))[:15],
             }
+
+
+def sync_prometheus_gauges_locked(state: "TelemetryState") -> None:
+    """Update Prometheus gauges from telemetry state (caller must hold state.lock)."""
+    ingestion_rate_gauge.set(state.ingestion_rate)
+    filter_rate_gauge.set(state.filter_rate)
+    duplicate_drop_rate_gauge.set(state.duplicate_drop_rate)
+    aggregate_rate_gauge.set(state.aggregate_rate)
+    total_readings_gauge.set(state.total_readings)
+    total_aggregates_gauge.set(state.total_aggregates)
+    active_trucks_gauge.set(len(state.trucks))
+    anomalies_gauge.set(len(state.anomalies))
+    websocket_connections_gauge.set(len(state.active_connections))
+    kafka_connected_gauge.set(1 if state.kafka_connected else 0)
 
 def time_now_seconds() -> float:
     return datetime.now(timezone.utc).timestamp()
@@ -270,6 +298,7 @@ class WorkerManager:
                 self.workers[name]["pid"] = proc.pid
                 self.workers[name]["status"] = "running"
                 logger.info("Worker %s successfully started with PID %d", name, proc.pid)
+                sync_workers_prometheus_gauge()
                 return True
             except Exception as e:
                 logger.error("Failed to start worker %s: %s", name, e)
@@ -306,6 +335,7 @@ class WorkerManager:
                             logger.error("Failed to delete state dir %s: %s", data_dir, e)
 
             logger.info("Worker %s is terminated", name)
+            sync_workers_prometheus_gauge()
             return True
 
     def get_status(self) -> List[dict]:
@@ -332,6 +362,11 @@ class WorkerManager:
             self.kill_worker(name, wipe_state=False)
 
 worker_manager = WorkerManager()
+
+
+def sync_workers_prometheus_gauge() -> None:
+    running = sum(1 for w in worker_manager.get_status() if w["status"] == "running")
+    workers_running_gauge.set(running)
 
 # The event loop uvicorn serves WebSocket connections on. The consumer runs in
 # a plain thread, so it can't await sends directly — it hands each broadcast to
@@ -375,6 +410,7 @@ def kafka_consumer_thread():
             now = time_now_seconds()
             if now - last_rate_update >= 1.0:
                 state.update_rates()
+                sync_workers_prometheus_gauge()
                 last_rate_update = now
                 
                 # Broadcast state snapshot to all open WebSockets
@@ -402,6 +438,7 @@ def kafka_consumer_thread():
                 telemetry_counter.inc()
                 state.add_reading(payload)
             elif topic == "truck-averages":
+                aggregate_counter.inc()
                 state.add_aggregate(payload)
                 
         except Exception as e:

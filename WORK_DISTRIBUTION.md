@@ -27,3 +27,7 @@ Branches with no commits yet: `simin-testing` (reserved for throughput chart ite
 ## Reassignment Log
 
 _(none)_
+
+## Next sprint
+
+See **[docs/BACKLOG_AND_ASSIGNMENTS.md](./docs/BACKLOG_AND_ASSIGNMENTS.md)** for per-person tasks, Prometheus/Grafana verification, and remaining frontend/backend work.
