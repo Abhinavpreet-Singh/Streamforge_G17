@@ -1,111 +1,33 @@
 {
   "annotations": { "list": [] },
   "editable": true,
-  "graphTooltip": 1,
+  "graphTooltip": 0,
   "panels": [
     {
-      "type": "stat",
-      "title": "Ingestion rate",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "decimals": 1 }
-      },
-      "targets": [{ "expr": "streamforge_ingestion_rate", "legendFormat": "msg/s" }]
-    },
-    {
-      "type": "stat",
-      "title": "Sink rate",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": { "unit": "ops", "decimals": 1 }
-      },
-      "targets": [{ "expr": "streamforge_aggregate_rate", "legendFormat": "agg/s" }]
-    },
-    {
-      "type": "stat",
-      "title": "Active trucks",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "streamforge_active_trucks" }]
-    },
-    {
-      "type": "stat",
-      "title": "Workers running",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "STOPPED", "color": "red" }, "1": { "text": "RUNNING", "color": "green" } } }
-          ]
+      "type": "timeseries",
+      "title": "API Telemetry Messages",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(telemetry_messages_total[1m])",
+          "legendFormat": "messages/s"
         }
-      },
-      "targets": [{ "expr": "streamforge_workers_running" }]
+      ]
     },
     {
-      "type": "stat",
-      "title": "Kafka connected",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
-          ]
+      "type": "timeseries",
+      "title": "Health Checks",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(health_requests_total[1m])",
+          "legendFormat": "health/s"
         }
-      },
-      "targets": [{ "expr": "streamforge_kafka_connected" }]
-    },
-    {
-      "type": "timeseries",
-      "title": "Pipeline throughput",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "ops" } },
-      "targets": [
-        { "expr": "streamforge_ingestion_rate", "legendFormat": "ingestion" },
-        { "expr": "streamforge_aggregate_rate", "legendFormat": "sink" },
-        { "expr": "streamforge_duplicate_drop_rate", "legendFormat": "dedup drops" },
-        { "expr": "streamforge_filter_rate", "legendFormat": "filter drops" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Cumulative totals",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        { "expr": "streamforge_total_readings", "legendFormat": "readings" },
-        { "expr": "streamforge_total_aggregates", "legendFormat": "aggregates" },
-        { "expr": "streamforge_anomalies", "legendFormat": "anomalies (buffer)" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Kafka consumer counters",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "ops" } },
-      "targets": [
-        { "expr": "rate(telemetry_messages_total[1m])", "legendFormat": "telemetry raw/s" },
-        { "expr": "rate(streamforge_aggregates_total[1m])", "legendFormat": "aggregates/s" }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Dashboard clients",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        { "expr": "streamforge_websocket_connections", "legendFormat": "websocket clients" },
-        { "expr": "rate(health_requests_total[1m])", "legendFormat": "health checks/s" }
       ]
     }
   ],
   "schemaVersion": 39,
   "title": "StreamForge API",
   "uid": "streamforge-api",
-  "version": 2
+  "version": 1
 }
