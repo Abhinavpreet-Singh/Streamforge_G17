@@ -1,6 +1,17 @@
-import PagePlaceholder from '../components/layout/PagePlaceholder';
+import ChaosPanel from "../components/chaos/ChaosPanel";
 
-/** Stack health, consumer lag, worker logs, chaos runbook UI */
 export default function Operations() {
-  return <PagePlaceholder pageId="operations" />;
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="text-2xl font-bold">
+        Operations Dashboard
+      </h1>
+
+      <p className="text-gray-600">
+        Monitor workers and perform chaos testing.
+      </p>
+
+      <ChaosPanel />
+    </div>
+  );
 }
