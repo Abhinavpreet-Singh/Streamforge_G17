@@ -35,10 +35,10 @@ frontend/src/
 │   └── ThroughputChart.jsx
 │
 └── pages/                  # One file per sidebar section
-    ├── Overview.jsx        # ✅ Done — original dashboard
+    ├── Overview.jsx        # Done — chart, map, DAG, live feed
     ├── Fleet.jsx           # placeholder
     ├── Pipeline.jsx        # placeholder
-    ├── Operations.jsx      # placeholder
+    ├── Operations.jsx      # Done — stack health + chaos panel
     └── Metrics.jsx         # placeholder
 ```
 
@@ -69,15 +69,79 @@ Available fields: `telemetry`, `workers`, `stackStatus`, `wsStatus`, `throughput
 
 **Do not** open a second WebSocket in page components — use context only.
 
-## Page ownership
+## Page assignments
+
+| Page | Person | Branch | File |
+|------|--------|--------|------|
+| Overview | Done (lead) | — | `pages/Overview.jsx` |
+| Fleet | **Noore Simin** | `Noore` | `pages/Fleet.jsx` |
+| Pipeline | **Noore Simin** | `Noore` | `pages/Pipeline.jsx` |
+| Operations | **Shifana** | `shifana` | `pages/Operations.jsx` |
+| Metrics | **Surya** | `Surya` | `pages/Metrics.jsx` |
+
+### Noore Simin — Fleet (`pages/Fleet.jsx`)
+
+Full-screen fleet view. Reuse `components/map/FleetMap.jsx`.
+
+- [ ] Map takes most of the page (not split with DAG)
+- [ ] Truck list/table on the right — ID, temp, tumbling avg, hopping avg, status
+- [ ] Click row or map marker → highlight truck + show detail card
+- [ ] Click anomaly (from `telemetry.anomalies`) → jump to that truck on map
+- [ ] Empty state when processor is stopped (“Start stream processor first”)
+
+Data: `useApp()` → `animatedTrucks`, `telemetry`, `selectTruckOnMap`, `selectedTruck`
+
+### Noore Simin — Pipeline (`pages/Pipeline.jsx`)
+
+Full-screen topology view. Reuse `components/pipeline/PipelineDAG.jsx`.
+
+- [ ] DAG fills the page with more zoom room
+- [ ] Side panel: fetch `GET /topology` and show each stage name + description
+- [ ] Show window sizes from `stackStatus.pipeline` (tumbling / hopping labels)
+- [ ] Stage status colors follow `pipelineActive` from context
+
+Data: `useApp()` + `fetch(apiUrl('/topology'))`
+
+### Shifana — Operations (`pages/Operations.jsx`)
+
+Control room for workers and stack health. Reuse `components/chaos/ChaosPanel.jsx`.
+
+**Frontend (this page):**
+
+- [ ] Move chaos panel here (full width) — worker Start / Crash
+- [ ] Stack status cards: Kafka, Schema Registry, workers running (from `stackStatus`)
+- [ ] Show consumer lag when API exposes it (placeholder cards until backend lands)
+- [ ] Log viewer area — last N lines from worker log endpoint (when ready)
+- [ ] Short “how to run chaos demo” steps at the top
+
+**Backend (same PR or separate):**
+
+- [ ] Add consumer lag to `GET /api/status`
+- [ ] Optional: `GET /api/workers/stream-processor/logs?tail=50`
+
+Data: `useApp()` → `workers`, `stackStatus`, `handleWorkerAction`
+
+### Surya — Metrics (`pages/Metrics.jsx`)
+
+Observability summary — no need to rebuild Grafana.
+
+- [ ] Stat cards: ingestion rate, sink rate, active trucks, anomalies (from `telemetry` / `useApp()`)
+- [ ] Big buttons: open Grafana dashboard, Prometheus targets (same URLs as header)
+- [ ] Optional: fetch `/metrics` and show raw counter values in a monospace block
+- [ ] Link to `docs/CHAOS_RUNBOOK.md` once written
+- [ ] “Last updated” timestamp (poll every 10s)
+
+Data: `useApp()` + optional `fetch(apiUrl('/metrics'))` as text
+
+## Page status
 
 | Page | Status | Reuse from Overview |
 |------|--------|---------------------|
 | Overview | Done | — |
-| Fleet | Placeholder | `FleetMap`, truck list new |
-| Pipeline | Placeholder | `PipelineDAG`, fetch `/topology` |
-| Operations | Placeholder | `ChaosPanel`, stack status, lag |
-| Metrics | Placeholder | Grafana links, `/metrics` cards |
+| Fleet | Placeholder | `FleetMap` |
+| Pipeline | Placeholder | `PipelineDAG`, `/topology` |
+| Operations | Done | `ChaosPanel`, `StackStatusCards` |
+| Metrics | Placeholder | Grafana / Prometheus links |
 
 ## Run locally
 

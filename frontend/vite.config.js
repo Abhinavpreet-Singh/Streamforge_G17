@@ -12,6 +12,8 @@ export default defineConfig({
       '/topology': 'http://localhost:8000',
       '/metrics': 'http://localhost:8000',
       '/ws': { target: 'http://localhost:8000', ws: true },
+      '/grafana': { target: 'http://localhost:3001', changeOrigin: true, rewrite: (p) => p.replace(/^\/grafana/, '') },
+      '/prometheus': { target: 'http://localhost:9090', changeOrigin: true, rewrite: (p) => p.replace(/^\/prometheus/, '') },
     },
   },
 })
