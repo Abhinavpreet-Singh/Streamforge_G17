@@ -529,16 +529,6 @@ def api_status():
         **stack,
     }
 
-@app.get("/api/status")
-def api_status():
-    workers = worker_manager.get_status()
-    stack = build_stack_status(workers)
-    return {
-        "time": datetime.now(timezone.utc).isoformat(),
-        "kafka_consumer": "connected" if state.kafka_connected else "disconnected",
-        **stack,
-    }
-
 @app.get("/api/workers")
 def get_workers():
     return worker_manager.get_status()

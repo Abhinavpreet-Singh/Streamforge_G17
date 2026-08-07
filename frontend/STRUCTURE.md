@@ -35,10 +35,10 @@ frontend/src/
 │   └── ThroughputChart.jsx
 │
 └── pages/                  # One file per sidebar section
-    ├── Overview.jsx        # ✅ Done — original dashboard
+    ├── Overview.jsx        # Done — chart, map, DAG, live feed
     ├── Fleet.jsx           # placeholder
     ├── Pipeline.jsx        # placeholder
-    ├── Operations.jsx      # placeholder
+    ├── Operations.jsx      # Done — stack health + chaos panel
     └── Metrics.jsx         # placeholder
 ```
 
@@ -140,7 +140,7 @@ Data: `useApp()` + optional `fetch(apiUrl('/metrics'))` as text
 | Overview | Done | — |
 | Fleet | Placeholder | `FleetMap` |
 | Pipeline | Placeholder | `PipelineDAG`, `/topology` |
-| Operations | Placeholder | `ChaosPanel`, stack status |
+| Operations | Done | `ChaosPanel`, `StackStatusCards` |
 | Metrics | Placeholder | Grafana / Prometheus links |
 
 ## Run locally

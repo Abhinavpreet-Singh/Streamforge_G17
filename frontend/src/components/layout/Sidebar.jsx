@@ -13,7 +13,7 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
         <div className="min-w-0 opacity-0 -translate-x-2 group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 transition-all duration-200 delay-75">
           <p className="text-sm font-semibold text-neutral-900 truncate">StreamForge</p>
-          <p className="text-[10px] text-neutral-400 font-mono truncate">Console</p>
+          <p className="text-[10px] text-neutral-400 font-mono truncate">Event pipeline</p>
         </div>
       </div>
 
@@ -49,13 +49,6 @@ export default function Sidebar({ activePage, onNavigate }) {
           );
         })}
       </nav>
-
-      <div
-        className="px-3 py-3 border-t border-neutral-100 text-[10px] text-neutral-400 font-mono leading-relaxed
-          opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
-      >
-        <span className="whitespace-nowrap">src/pages/</span>
-      </div>
     </aside>
   );
 }
