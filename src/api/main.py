@@ -536,6 +536,12 @@ def api_status():
     return {
         "time": datetime.now(timezone.utc).isoformat(),
         "kafka_consumer": "connected" if state.kafka_connected else "disconnected",
+        "pipeline": {
+            "app_id": APP_ID,
+            "window_size_seconds": WINDOW_SIZE_SECONDS,
+            "hopping_step_seconds": HOPPING_STEP_SECONDS,
+            "demo_mode": os.getenv("DEMO_MODE", "").lower() in ("1", "true", "yes"),
+        },
         **stack,
     }
 
