@@ -10,6 +10,7 @@ export const NAV_ITEMS = [
   {
     id: 'overview',
     label: 'Overview',
+    description: 'Live dashboard: chart, map, DAG, chaos',
     description: 'Live dashboard: chart, map, DAG, live feed',
     icon: LayoutDashboard,
     ready: true,
@@ -33,11 +34,15 @@ export const NAV_ITEMS = [
     label: 'Operations',
     description: 'Workers, stack health, consumer lag, logs',
     icon: Settings2,
+    ready: false,
     ready: true,
   },
   {
     id: 'metrics',
     label: 'Metrics',
+    description: 'Prometheus cards + Grafana links',
+    icon: BarChart3,
+    ready: false,
     description: 'Grafana, Prometheus, and API metrics embedded',
     icon: BarChart3,
     ready: true,
