@@ -15,8 +15,15 @@ export default function Metrics() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={Gauge} label="Ingestion Rate" value={telemetry.ingestion_rate} unit="msg/s" accent="sky" />
         <StatCard icon={BarChart3} label="Sink Rate" value={telemetry.aggregate_rate} unit="msg/s" accent="emerald" />
-        <StatCard icon={Truck} label="Trucks" value="—" />
+        <StatCard icon={Truck} label="Trucks" value={telemetry.trucks.length} />
+        <StatCard
+         icon={AlertTriangle}
+         label="Anomalies"
+         value={telemetry.anomalies.length}
+         accent={telemetry.anomalies.length > 0 ? 'rose' : 'neutral'}
+        />
         <StatCard icon={AlertTriangle} label="Anomalies" value="—" accent="rose" />
+        <StatCard icon={Truck} label="Trucks" value={telemetry.trucks.length} />
       </div>
     </div>
   );
