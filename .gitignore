@@ -9,3 +9,8 @@ build/
 *.log
 .DS_Store
 rocksdb-data/
+
+venv312/
+venv312_windows/
+venv_windows/
+.python-version
