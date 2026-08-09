@@ -9,7 +9,8 @@ build/
 *.log
 .DS_Store
 rocksdb-data/
-streamforge-data/
-streamforge-dat/
-*-dat/
-logs/
+
+venv312/
+venv312_windows/
+venv_windows/
+.python-version
