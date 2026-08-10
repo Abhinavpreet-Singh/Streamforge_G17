@@ -42,10 +42,60 @@ def metrics():
     )
 @app.get("/topology")
 def topology():
-    try:
-        metadata = admin.list_topics(timeout=5)
+    tumble_label = f"Tumbling Aggregate ({WINDOW_SIZE_SECONDS}s)"
+    hop_label = f"Hopping Aggregate ({WINDOW_SIZE_SECONDS}s / {HOPPING_STEP_SECONDS}s)"
+    return {
+        "status": "active",
+        "pipeline": {
+            "app_id": APP_ID,
+            "window_size_seconds": WINDOW_SIZE_SECONDS,
+            "hopping_step_seconds": HOPPING_STEP_SECONDS,
+        },
+        "dag": {
+            "nodes": [
+                {"id": "ingest", "label": "Kafka Ingest (truck-telemetry)", "type": "input"},
+                {"id": "dedup", "label": "Deduplication", "type": "process"},
+                {"id": "filter", "label": "Temperature Filter (>0°C)", "type": "process"},
+                {"id": "map", "label": "Normalize Event", "type": "process"},
+                {"id": "tumbling", "label": tumble_label, "type": "window"},
+                {"id": "hopping", "label": hop_label, "type": "window"},
+                {"id": "state", "label": "Faust State Tables", "type": "storage"},
+                {"id": "changelog", "label": "Changelog (recovery demos)", "type": "storage"},
+                {"id": "sink", "label": "Kafka Output (truck-averages)", "type": "output"},
+            ],
+            "edges": [
+                {"source": "ingest", "target": "dedup"},
+                {"source": "dedup", "target": "filter"},
+                {"source": "filter", "target": "map"},
+                {"source": "map", "target": "tumbling"},
+                {"source": "map", "target": "hopping"},
+                {"source": "tumbling", "target": "state"},
+                {"source": "hopping", "target": "state"},
+                {"source": "tumbling", "target": "sink"},
+                {"source": "hopping", "target": "sink"},
+            ],
+        },
+    }
 
-        kafka_status = "connected"
+@app.get("/api/status")
+def api_status():
+    workers = worker_manager.get_status()
+    stack = build_stack_status(workers)
+    return {
+        "time": datetime.now(timezone.utc).isoformat(),
+        "kafka_consumer": "connected" if state.kafka_connected else "disconnected",
+        "pipeline": {
+            "app_id": APP_ID,
+            "window_size_seconds": WINDOW_SIZE_SECONDS,
+            "hopping_step_seconds": HOPPING_STEP_SECONDS,
+            "demo_mode": os.getenv("DEMO_MODE", "").lower() in ("1", "true", "yes"),
+        },
+        **stack,
+    }
+
+@app.get("/api/workers")
+def get_workers():
+    return worker_manager.get_status()
 
         telemetry_topic = metadata.topics.get("truck-telemetry")
         averages_topic = metadata.topics.get("truck-averages")
