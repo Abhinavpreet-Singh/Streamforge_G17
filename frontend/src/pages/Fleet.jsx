@@ -31,9 +31,10 @@ export default function Fleet() {
           <FleetMap className="h-full" />
         </div>
 
-        <aside className="w-full max-w-md lg:w-96 shrink-0 border-l border-neutral-200 flex flex-col min-h-0 bg-white">
-          <div className="p-4 border-b border-neutral-100 shrink-0">
-            <p className="text-xs font-mono text-neutral-400">
+        <aside className="w-full max-w-md lg:w-96 shrink-0 border-l border-neutral-200 flex flex-col min-h-0 bg-neutral-50">
+          <div className="p-4 border-b border-neutral-200 bg-white shrink-0">
+            <h2 className="text-sm font-semibold text-neutral-900">Fleet roster</h2>
+            <p className="text-[10px] font-mono text-neutral-400 mt-1">
               {trucks.length} active truck{trucks.length === 1 ? '' : 's'}
             </p>
             {!processorRunning && (
@@ -43,20 +44,20 @@ export default function Fleet() {
             )}
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto bg-white">
             <table className="w-full text-xs font-mono">
               <thead className="bg-neutral-50 text-neutral-500 sticky top-0">
                 <tr>
-                  <th className="p-2 text-left font-medium">Truck</th>
-                  <th className="p-2 text-left font-medium">Temp</th>
-                  <th className="p-2 text-left font-medium">Tumble</th>
-                  <th className="p-2 text-left font-medium">Hop</th>
+                  <th className="p-2.5 text-left font-medium">Truck</th>
+                  <th className="p-2.5 text-left font-medium">Temp</th>
+                  <th className="p-2.5 text-left font-medium">Tumble</th>
+                  <th className="p-2.5 text-left font-medium">Hop</th>
                 </tr>
               </thead>
               <tbody>
                 {trucks.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-neutral-400">
+                    <td colSpan={4} className="p-8 text-center text-neutral-400">
                       Waiting for truck readings…
                     </td>
                   </tr>
@@ -72,10 +73,10 @@ export default function Fleet() {
                           selected ? 'bg-neutral-100' : 'hover:bg-neutral-50'
                         } ${anomalous ? 'text-rose-700' : 'text-neutral-800'}`}
                       >
-                        <td className="p-2 font-semibold">#{truck.truck_id}</td>
-                        <td className="p-2">{formatTemp(truck.last_temperature)}</td>
-                        <td className="p-2">{formatTemp(truck.tumbling_avg)}</td>
-                        <td className="p-2">{formatTemp(truck.hopping_avg)}</td>
+                        <td className="p-2.5 font-semibold">#{truck.truck_id}</td>
+                        <td className="p-2.5">{formatTemp(truck.last_temperature)}</td>
+                        <td className="p-2.5">{formatTemp(truck.tumbling_avg)}</td>
+                        <td className="p-2.5">{formatTemp(truck.hopping_avg)}</td>
                       </tr>
                     );
                   })
@@ -85,26 +86,32 @@ export default function Fleet() {
           </div>
 
           {selectedTruck && (
-            <div className="p-4 border-t border-neutral-200 bg-neutral-50 shrink-0">
+            <div className="p-4 border-t border-neutral-200 bg-white shrink-0">
               <h3 className="text-sm font-semibold text-neutral-900 mb-2">
                 Truck #{selectedTruck.truck_id}
               </h3>
-              <dl className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <dl className="grid grid-cols-2 gap-3 text-xs font-mono">
                 <div>
                   <dt className="text-neutral-400">Temperature</dt>
-                  <dd>{formatTemp(selectedTruck.last_temperature)}</dd>
+                  <dd className="text-neutral-900 mt-0.5">{formatTemp(selectedTruck.last_temperature)}</dd>
                 </div>
                 <div>
                   <dt className="text-neutral-400">Status</dt>
-                  <dd>{selectedTruck.last_temperature > 42 ? 'Anomaly' : 'Healthy'}</dd>
+                  <dd className="mt-0.5">
+                    {selectedTruck.last_temperature > 42 ? (
+                      <span className="text-rose-600">Anomaly</span>
+                    ) : (
+                      <span className="text-emerald-600">Healthy</span>
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-neutral-400">Tumbling avg</dt>
-                  <dd>{formatTemp(selectedTruck.tumbling_avg)}</dd>
+                  <dd className="text-neutral-900 mt-0.5">{formatTemp(selectedTruck.tumbling_avg)}</dd>
                 </div>
                 <div>
                   <dt className="text-neutral-400">Hopping avg</dt>
-                  <dd>{formatTemp(selectedTruck.hopping_avg)}</dd>
+                  <dd className="text-neutral-900 mt-0.5">{formatTemp(selectedTruck.hopping_avg)}</dd>
                 </div>
               </dl>
             </div>

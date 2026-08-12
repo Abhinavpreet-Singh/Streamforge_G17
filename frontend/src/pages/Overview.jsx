@@ -15,15 +15,15 @@ export default function Overview() {
       </div>
 
       <main className="flex-1 flex overflow-hidden min-h-0">
-        <div className="w-full lg:w-[38%] border-r border-neutral-200 min-h-0">
-          <FleetMap className="h-full" />
+        <div className="w-full lg:w-[40%] border-r border-neutral-200 min-h-0 flex flex-col">
+          <FleetMap className="h-full min-h-[280px]" />
         </div>
 
-        <div className="hidden lg:flex flex-1 flex-col min-h-0">
-          <div className="h-[58%] border-b border-neutral-200 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="h-[55%] min-h-[220px] border-b border-neutral-200">
             <PipelineDAG className="h-full bg-white" />
           </div>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-[160px]">
             <LiveFeed className="h-full" />
           </div>
         </div>
