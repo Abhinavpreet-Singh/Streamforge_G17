@@ -3,28 +3,45 @@ import StatCard from '../components/metrics/StatCard';
 import { useApp } from '../hooks/useApp';
 import { ExternalLink } from 'lucide-react';
 import { GRAFANA_URL, PROMETHEUS_URL } from '../config/monitoring';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '../lib/api';
 
 export default function Metrics() {
   const { telemetry } = useApp();
   const [rawMetrics, setRawMetrics] = useState('');
   const [rawError, setRawError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const fetchRawMetrics = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/metrics'));
+      if (!res.ok) throw new Error('bad response');
+      setRawMetrics(await res.text());
+      setRawError(false);
+    } catch {
+      setRawError(true);
+    } finally {
+      setLastUpdated(new Date());
+    }
+  }, []);
 
   useEffect(() => {
-    fetch(apiUrl('/metrics'))
-      .then((res) => (res.ok ? res.text() : Promise.reject()))
-      .then(setRawMetrics)
-      .catch(() => setRawError(true));
-  }, []);
-  
+    fetchRawMetrics();
+    const id = setInterval(fetchRawMetrics, 10000);
+    return () => clearInterval(id);
+  }, [fetchRawMetrics]);
+
+
   return (
     <>
-      <div className="flex-1 overflow-y-auto bg-neutral-50 p-6">
-        <div className="flex items-center gap-2 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-2">
           <BarChart3 size={20} className="text-neutral-700" />
           <h2 className="text-lg font-semibold text-neutral-900">Metrics</h2>
         </div>
+        <span className="text-xs text-neutral-400 font-mono">
+          {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Loading…'}
+        </span>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard icon={Gauge} label="Ingestion Rate" value={telemetry.ingestion_rate} unit="msg/s" accent="sky" />
