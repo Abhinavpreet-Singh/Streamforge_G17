@@ -1,18 +1,9 @@
 import { useApp } from '../../hooks/useApp';
 import { NAV_ITEMS } from '../../config/navigation';
 
-export default function AppHeader({ activePage, metricsTab, onNavigate }) {
+export default function AppHeader({ activePage }) {
   const { wsStatus, telemetry, stackStatus } = useApp();
   const page = NAV_ITEMS.find((item) => item.id === activePage);
-
-  const obsBtn = (tab) => {
-    const active = activePage === 'metrics' && metricsTab === tab;
-    return `px-2 py-1 rounded border text-xs transition-colors ${
-      active
-        ? 'border-neutral-900 bg-neutral-900 text-white'
-        : 'border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600'
-    }`;
-  };
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-white border-b border-neutral-200 shrink-0 min-h-[3.25rem]">
@@ -56,16 +47,22 @@ export default function AppHeader({ activePage, metricsTab, onNavigate }) {
           />
           <span className="hidden sm:inline">{wsStatus.toUpperCase()}</span>
         </span>
-        <button type="button" onClick={() => onNavigate('metrics', 'grafana')} className={obsBtn('grafana')}>
+        <a
+          href="http://localhost:3001/d/streamforge-api"
+          target="_blank"
+          rel="noreferrer"
+          className="px-2 py-1 rounded border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600"
+        >
           Grafana
-        </button>
-        <button
-          type="button"
-          onClick={() => onNavigate('metrics', 'prometheus')}
-          className={`${obsBtn('prometheus')} hidden sm:inline`}
+        </a>
+        <a
+          href="http://localhost:9090/targets"
+          target="_blank"
+          rel="noreferrer"
+          className="px-2 py-1 rounded border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 hidden sm:inline"
         >
           Prometheus
-        </button>
+        </a>
       </div>
     </header>
   );

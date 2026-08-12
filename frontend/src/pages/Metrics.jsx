@@ -1,94 +1,33 @@
-import { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
 import PageLayout, { PageBody } from '../components/layout/PageLayout';
-import MetricsStatCards from '../components/metrics/MetricsStatCards';
-import { OBS_TABS } from '../lib/observability';
-import { apiUrl } from '../lib/api';
+import { BarChart3 } from 'lucide-react';
 
-const TAB_LIST = [OBS_TABS.grafana, OBS_TABS.prometheus, OBS_TABS.api];
-
-export default function Metrics({ tab = 'grafana', onTabChange }) {
-  const [rawMetrics, setRawMetrics] = useState('');
-  const [metricsError, setMetricsError] = useState(false);
-
-  const current = TAB_LIST.find((t) => t.id === tab) ?? OBS_TABS.grafana;
-
-  useEffect(() => {
-    if (tab !== 'api') return;
-    let cancelled = false;
-    const load = () =>
-      fetch(apiUrl('/metrics'))
-        .then((r) => r.text())
-        .then((text) => {
-          if (!cancelled) {
-            setRawMetrics(text);
-            setMetricsError(false);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setMetricsError(true);
-        });
-    load();
-    const id = setInterval(load, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [tab]);
-
+/** Assigned to Surya — build Grafana / Prometheus / API metrics UI here */
+export default function Metrics() {
   return (
     <PageLayout>
-      <PageBody className="flex flex-col gap-4 !p-4 md:!p-5 min-h-0">
-        <MetricsStatCards />
-
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {TAB_LIST.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onTabChange?.(t.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-neutral-900 text-white'
-                  : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-          <a
-            href={current.externalHref}
-            target="_blank"
-            rel="noreferrer"
-            className="ml-auto flex items-center gap-1 text-[10px] font-mono text-neutral-500 hover:text-neutral-800"
-          >
-            Open {current.label} <ExternalLink size={12} />
-          </a>
-        </div>
-
-        <div className="flex-1 min-h-[360px] rounded-xl border border-neutral-200 bg-white overflow-hidden flex flex-col">
-          <div className="px-4 py-2 border-b border-neutral-100 shrink-0">
-            <p className="text-xs text-neutral-500">{current.description}</p>
+      <PageBody className="flex items-center justify-center">
+        <div className="w-full max-w-lg mx-auto text-center">
+          <div className="inline-flex p-3 rounded-full bg-neutral-100 text-neutral-700 mb-4">
+            <BarChart3 size={28} />
           </div>
-
-          {tab === 'api' ? (
-            <div className="flex-1 overflow-auto bg-neutral-950 p-4">
-              {metricsError ? (
-                <p className="text-xs text-rose-400 font-mono">Could not reach /metrics — is API on :8000?</p>
-              ) : (
-                <pre className="text-[10px] leading-relaxed text-emerald-400/90 font-mono whitespace-pre-wrap">
-                  {rawMetrics || 'Loading…'}
-                </pre>
-              )}
-            </div>
-          ) : (
-            <iframe
-              key={current.embedSrc}
-              title={current.label}
-              src={current.embedSrc}
-              className="flex-1 w-full min-h-[320px] border-0 bg-neutral-50"
-            />
-          )}
+          <h2 className="text-lg font-semibold text-neutral-900 mb-2">Metrics</h2>
+          <p className="text-sm text-neutral-600 mb-6">
+            Observability home — embed Grafana, Prometheus targets, and live API gauges.
+          </p>
+          <div className="text-left bg-white border border-neutral-200 rounded-xl p-4 text-xs font-mono space-y-2 shadow-sm">
+            <p>
+              <span className="text-neutral-400">File: </span>
+              <span className="text-neutral-800">src/pages/Metrics.jsx</span>
+            </p>
+            <p>
+              <span className="text-neutral-400">Use: </span>
+              <span className="text-neutral-600">useApp() for rates · fetch /metrics · iframe Grafana</span>
+            </p>
+            <p>
+              <span className="text-neutral-400">Links: </span>
+              <span className="text-neutral-600">localhost:3001 · localhost:9090</span>
+            </p>
+          </div>
         </div>
       </PageBody>
     </PageLayout>
