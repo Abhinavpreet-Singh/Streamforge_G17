@@ -15,7 +15,9 @@ TODO:
 from fastapi import FastAPI
 from prometheus_client import Counter, generate_latest
 from fastapi.responses import Response
-from confluent_kafka.admin import AdminClient
+from confluent_kafka.admin import AdminClient 
+from src.api.stack_health import build_stack_status
+
 
 app = FastAPI(title="StreamForge Topology API")
 
@@ -79,3 +81,11 @@ def topology():
     ],
     "total_workers": 2
  }
+@app.get("/api/status")
+def api_status():
+    workers = [
+        {"id": "worker-1", "status": "running"},
+        {"id": "worker-2", "status": "running"},
+    ]
+
+    return build_stack_status(workers) 
