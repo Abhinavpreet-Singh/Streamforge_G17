@@ -26,7 +26,7 @@ export const NAV_ITEMS = [
     label: 'Pipeline',
     description: 'Topology DAG + stage docs from /topology',
     icon: GitBranch,
-    ready: false,
+    ready: true,
   },
   {
     id: 'operations',
@@ -38,9 +38,9 @@ export const NAV_ITEMS = [
   {
     id: 'metrics',
     label: 'Metrics',
-    description: 'Grafana, Prometheus, and API metrics embedded',
+    description: 'Grafana, Prometheus, and API metrics',
     icon: BarChart3,
-    ready: true,
+    ready: false,
   },
 ];
 
