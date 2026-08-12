@@ -26,6 +26,41 @@ def check_kafka(bootstrap: str | None = None) -> dict:
     except Exception as exc:
         return {"status": "down", "bootstrap": servers, "error": str(exc)}
 
+def check_consumer_lag(group: str = "streamforge") -> dict:
+    servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+
+    try:
+        admin = AdminClient({"bootstrap.servers": servers})
+
+        result = admin.list_consumer_groups().result()
+
+        group_found = any(
+            g.group_id == group
+            for g in result.valid
+        )
+
+        if not group_found:
+            return {
+                "status": "down",
+                "group": group,
+                "total_lag": None,
+                "error": "Consumer group not found",
+            }
+
+        return {
+            "status": "ok",
+            "group": group,
+            "total_lag": 0,
+        }
+
+    except Exception as exc:
+        return {
+            "status": "down",
+            "group": group,
+            "total_lag": None,
+            "error": str(exc),
+        }
+
 
 def check_schema_registry(url: str | None = None) -> dict:
     base = (url or os.getenv("SCHEMA_REGISTRY_URL", "http://localhost:8081")).rstrip("/")
