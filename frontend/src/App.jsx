@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { AppProvider } from './context/AppProvider';
 import AppShell from './components/layout/AppShell';
-import { DEFAULT_PAGE } from './config/navigation';
+import { NAV_ITEMS, DEFAULT_PAGE } from './config/navigation';
+
 import Overview from './pages/Overview';
 import Fleet from './pages/Fleet';
 import Pipeline from './pages/Pipeline';
@@ -18,12 +19,13 @@ const PAGES = {
 
 export default function App() {
   const [activePage, setActivePage] = useState(DEFAULT_PAGE);
-  const Page = PAGES[activePage] ?? Overview;
+
+  const ActivePageComponent = PAGES[activePage] ?? PAGES[NAV_ITEMS[0].id];
 
   return (
     <AppProvider>
       <AppShell activePage={activePage} onNavigate={setActivePage}>
-        <Page />
+        <ActivePageComponent />
       </AppShell>
     </AppProvider>
   );
