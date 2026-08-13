@@ -83,12 +83,44 @@ export default function Operations() {
               <section className="rounded-xl border border-neutral-200 bg-white p-4 shrink-0">
                 <h2 className="text-sm font-semibold text-neutral-900 mb-2">Consumer lag</h2>
                 <p className="text-xs text-neutral-500 mb-3">
-                  Per-topic lag appears when exposed on{' '}
+                  Faust consumer group from{' '}
                   <code className="font-mono text-neutral-700 bg-neutral-100 px-1 rounded">/api/status</code>.
                 </p>
-                <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 p-4 text-center text-xs text-neutral-400 font-mono">
-                  No lag data yet
-                </div>
+                {stackStatus?.consumer_lag ? (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-1 font-mono text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-neutral-500">Group</span>
+                      <span className="text-neutral-800">{stackStatus.consumer_lag.group}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-neutral-500">Status</span>
+                      <span
+                        className={
+                          stackStatus.consumer_lag.status === 'ok'
+                            ? 'text-emerald-700'
+                            : 'text-amber-700'
+                        }
+                      >
+                        {stackStatus.consumer_lag.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-neutral-500">Total lag</span>
+                      <span className="text-neutral-800">
+                        {stackStatus.consumer_lag.total_lag ?? '—'}
+                      </span>
+                    </div>
+                    {stackStatus.consumer_lag.error && (
+                      <p className="text-[10px] text-amber-700 pt-1 border-t border-neutral-200 mt-2">
+                        {stackStatus.consumer_lag.error}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 p-4 text-center text-xs text-neutral-400 font-mono">
+                    No lag data yet
+                  </div>
+                )}
               </section>
 
               <section className="flex-1 rounded-xl border border-neutral-200 bg-neutral-900 p-4 min-h-[180px] flex flex-col">

@@ -1,5 +1,6 @@
 import { useApp } from '../../hooks/useApp';
 import { NAV_ITEMS } from '../../config/navigation';
+import { GRAFANA_URL, PROMETHEUS_URL } from '../../lib/observability';
 
 export default function AppHeader({ activePage }) {
   const { wsStatus, telemetry, stackStatus } = useApp();
@@ -48,7 +49,7 @@ export default function AppHeader({ activePage }) {
           <span className="hidden sm:inline">{wsStatus.toUpperCase()}</span>
         </span>
         <a
-          href="http://localhost:3001/d/streamforge-api"
+          href={GRAFANA_URL}
           target="_blank"
           rel="noreferrer"
           className="px-2 py-1 rounded border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600"
@@ -56,7 +57,7 @@ export default function AppHeader({ activePage }) {
           Grafana
         </a>
         <a
-          href="http://localhost:9090/targets"
+          href={PROMETHEUS_URL}
           target="_blank"
           rel="noreferrer"
           className="px-2 py-1 rounded border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 hidden sm:inline"

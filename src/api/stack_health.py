@@ -77,10 +77,12 @@ def check_schema_registry(url: str | None = None) -> dict:
 def build_stack_status(workers: list[dict]) -> dict:
     kafka = check_kafka()
     registry = check_schema_registry()
+    lag = check_consumer_lag()
     running = sum(1 for w in workers if w.get("status") == "running")
     return {
         "kafka": kafka,
         "schema_registry": registry,
+        "consumer_lag": lag,
         "workers": {"running": running, "total": len(workers)},
         "ready": (
             kafka.get("status") == "ok"

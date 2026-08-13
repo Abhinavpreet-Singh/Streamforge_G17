@@ -1,101 +1,117 @@
-import { BarChart3, Gauge, Truck, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
-import StatCard from '../components/metrics/StatCard';
-import { useApp } from '../hooks/useApp';
+import { useCallback, useEffect, useState } from 'react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
+import PageLayout, { PageBody } from '../components/layout/PageLayout';
+import MetricsStatCards from '../components/metrics/MetricsStatCards';
+import { OBS_TABS } from '../lib/observability';
 import { apiUrl } from '../lib/api';
-import { GRAFANA_URL, PROMETHEUS_URL } from '../config/monitoring';
+
+const TAB_LIST = [OBS_TABS.grafana, OBS_TABS.prometheus, OBS_TABS.api];
 
 export default function Metrics() {
-  const { telemetry } = useApp();
+  const [tab, setTab] = useState('grafana');
   const [rawMetrics, setRawMetrics] = useState('');
-  const [rawError, setRawError] = useState(false);
+  const [metricsError, setMetricsError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchRawMetrics = useCallback(async () => {
-    try {
-      const res = await fetch(apiUrl('/metrics'));
-      if (!res.ok) throw new Error('bad response');
-      setRawMetrics(await res.text());
-      setRawError(false);
-    } catch {
-      setRawError(true);
-    } finally {
-      setLastUpdated(new Date());
-      setLoading(false);
-    }
+  const current = TAB_LIST.find((t) => t.id === tab) ?? OBS_TABS.grafana;
+
+  const loadRawMetrics = useCallback(() => {
+    fetch(apiUrl('/metrics'))
+      .then((r) => {
+        if (!r.ok) throw new Error('bad response');
+        return r.text();
+      })
+      .then((text) => {
+        setRawMetrics(text);
+        setMetricsError(false);
+        setLastUpdated(new Date());
+      })
+      .catch(() => {
+        setMetricsError(true);
+        setLastUpdated(new Date());
+      });
   }, []);
 
   useEffect(() => {
-    fetchRawMetrics();
-    const id = setInterval(fetchRawMetrics, 10000);
+    if (tab !== 'api') return;
+    loadRawMetrics();
+    const id = setInterval(loadRawMetrics, 10000);
     return () => clearInterval(id);
-  }, [fetchRawMetrics]);
+  }, [tab, loadRawMetrics]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-neutral-50 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-2">
-          <BarChart3 size={20} className="text-neutral-700" />
-          <h2 className="text-lg font-semibold text-neutral-900">Metrics</h2>
+    <PageLayout>
+      <PageBody className="flex flex-col gap-4 !p-4 md:!p-5 min-h-0">
+        <div className="shrink-0">
+          <p className="text-xs text-neutral-500">
+            Live rates from the dashboard WebSocket, plus Grafana / Prometheus embeds.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-neutral-400 font-mono">
-            {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Loading…'}
-          </span>
-          <button
-            type="button"
-            onClick={fetchRawMetrics}
-            className="flex items-center gap-1 px-2 py-1 border border-neutral-200 rounded hover:bg-neutral-50 text-neutral-600 text-xs"
+
+        <MetricsStatCards />
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {TAB_LIST.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+          {tab === 'api' && (
+            <button
+              type="button"
+              onClick={loadRawMetrics}
+              className="flex items-center gap-1 px-2 py-1 border border-neutral-200 rounded-lg text-neutral-600 text-[10px] font-mono hover:bg-neutral-50"
+            >
+              <RefreshCw size={10} />
+              {lastUpdated ? lastUpdated.toLocaleTimeString() : '…'}
+            </button>
+          )}
+          <a
+            href={current.externalHref}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto flex items-center gap-1 text-[10px] font-mono text-neutral-500 hover:text-neutral-800"
           >
-            <RefreshCw size={12} /> Refresh
-          </button>
+            Open {current.label} <ExternalLink size={12} />
+          </a>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Gauge} label="Ingestion Rate" value={telemetry.ingestion_rate} unit="msg/s" accent="sky" />
-        <StatCard icon={BarChart3} label="Sink Rate" value={telemetry.aggregate_rate} unit="msg/s" accent="emerald" />
-        <StatCard icon={Truck} label="Trucks" value={telemetry.trucks.length} />
-        <StatCard
-          icon={AlertTriangle}
-          label="Anomalies"
-          value={telemetry.anomalies.length}
-          accent={telemetry.anomalies.length > 0 ? 'rose' : 'neutral'}
-        />
-      </div>
+        <div className="flex-1 min-h-[360px] rounded-xl border border-neutral-200 bg-white overflow-hidden flex flex-col">
+          <div className="px-4 py-2 border-b border-neutral-100 shrink-0">
+            <p className="text-xs text-neutral-500">{current.description}</p>
+          </div>
 
-      <div className="flex gap-3 mb-6">
-        <a
-          href={GRAFANA_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800"
-        >
-          <ExternalLink size={14} /> Open Grafana
-        </a>
-        <a
-          href={PROMETHEUS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-2 px-4 py-2 border border-neutral-200 bg-white rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-        >
-          <ExternalLink size={14} /> Open Prometheus
-        </a>
-      </div>
-
-      <div className="bg-white border border-neutral-200 rounded-xl p-4 shadow-sm">
-        <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Raw /metrics</h3>
-        {loading ? (
-          <p className="text-xs text-neutral-400 font-mono">Loading…</p>
-        ) : rawError ? (
-          <p className="text-xs text-rose-600 font-mono">Failed to load /metrics — is the API running on :8000?</p>
-        ) : (
-          <pre className="text-[11px] font-mono text-neutral-700 bg-neutral-50 border border-neutral-100 rounded-lg p-3 max-h-64 overflow-auto whitespace-pre-wrap">
-            {rawMetrics}
-          </pre>
-        )}
-      </div>
-    </div>
+          {tab === 'api' ? (
+            <div className="flex-1 overflow-auto bg-neutral-950 p-4">
+              {metricsError ? (
+                <p className="text-xs text-rose-400 font-mono">
+                  Could not reach /metrics — is API on :8000?
+                </p>
+              ) : (
+                <pre className="text-[10px] leading-relaxed text-emerald-400/90 font-mono whitespace-pre-wrap">
+                  {rawMetrics || 'Loading…'}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <iframe
+              key={current.embedSrc}
+              title={current.label}
+              src={current.embedSrc}
+              className="flex-1 w-full min-h-[320px] border-0 bg-neutral-50"
+            />
+          )}
+        </div>
+      </PageBody>
+    </PageLayout>
   );
 }

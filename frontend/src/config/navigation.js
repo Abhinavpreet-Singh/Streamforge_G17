@@ -40,7 +40,7 @@ export const NAV_ITEMS = [
     label: 'Metrics',
     description: 'Grafana, Prometheus, and API metrics',
     icon: BarChart3,
-    ready: false,
+    ready: true,
   },
 ];
 
