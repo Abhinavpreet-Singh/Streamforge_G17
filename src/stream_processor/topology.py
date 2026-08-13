@@ -4,15 +4,22 @@ Week 2 — Stream Processing (Owner: Stream Processing Engineer, branch: Meven)
 Faust topology:
   Consume → Dedup → Filter(temp > 0) → Map → Tumbling + Hopping windows
   → emit per-truck averages to `truck-averages`.
+
+Also dual-writes rolling averages to RocksDB + truck-state-changelog so the
+chaos recovery demo path stays warm during live demos (Faust tables remain
+the primary window store).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import faust
+from confluent_kafka import Producer
 
 from .config import (
     APP_ID,
@@ -40,6 +47,37 @@ from .transforms import (
 )
 
 logger = logging.getLogger(__name__)
+
+_rocks_store = None
+_rocks_tried = False
+
+
+def _get_rocks_store():
+    """Best-effort RocksDB dual-write; never blocks the Faust pipeline."""
+    global _rocks_store, _rocks_tried
+    if _rocks_tried:
+        return _rocks_store
+    _rocks_tried = True
+    try:
+        from src.state_store.rocksdb_store import CHANGELOG_TOPIC, RocksDBStateStore
+
+        producer = Producer({"bootstrap.servers": KAFKA_BROKER})
+
+        def publish(key: str, value: dict) -> None:
+            producer.produce(
+                CHANGELOG_TOPIC,
+                key=key.encode("utf-8"),
+                value=json.dumps(value).encode("utf-8"),
+            )
+            producer.poll(0)
+
+        path = Path(f"{APP_ID}-rocksdb") / "truck-state"
+        _rocks_store = RocksDBStateStore(path, changelog_publisher=publish)
+        logger.info("RocksDB dual-write enabled at %s", path)
+    except Exception as exc:
+        logger.warning("RocksDB dual-write disabled: %s", exc)
+        _rocks_store = None
+    return _rocks_store
 
 app = faust.App(
     APP_ID,
@@ -159,6 +197,13 @@ async def filter_and_map(events):
                 event.temperature,
             )
             continue
+
+        store = _get_rocks_store()
+        if store is not None:
+            try:
+                store.update(reading.truck_id, reading.temperature_c)
+            except Exception:
+                logger.debug("rocksdb dual-write failed", exc_info=True)
 
         key = str(reading.truck_id)
         await tumbling_channel.send(key=key, value=reading)

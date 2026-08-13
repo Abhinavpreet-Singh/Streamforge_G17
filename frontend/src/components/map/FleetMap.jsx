@@ -31,7 +31,11 @@ export default function FleetMap({ className = '' }) {
           <MapPin size={16} />
           <div>
             <h2 className="text-sm font-semibold">Fleet Map</h2>
-            <p className="text-[10px] text-neutral-400 font-mono">Simulated routes per truck ID</p>
+            <p className="text-[10px] text-neutral-400 font-mono">
+              {animatedTrucks.some((t) => t.gpsSource === 'kafka')
+                ? 'Live GPS from Kafka telemetry'
+                : 'Simulated routes until GPS arrives'}
+            </p>
           </div>
         </div>
         <button
@@ -66,6 +70,12 @@ export default function FleetMap({ className = '' }) {
                     <div className="font-mono text-neutral-500">
                       Tumble: {truck.tumbling_avg != null ? truck.tumbling_avg.toFixed(2) : `pending (${tumbleLabel})`}
                     </div>
+                    <div className="font-mono text-neutral-500">
+                      Hop: {truck.hopping_avg != null ? truck.hopping_avg.toFixed(2) : 'pending'}
+                    </div>
+                    {truck.fuel_level != null && (
+                      <div className="font-mono text-neutral-500">Fuel: {Number(truck.fuel_level).toFixed(0)}%</div>
+                    )}
                   </div>
                 </Popup>
               </CircleMarker>

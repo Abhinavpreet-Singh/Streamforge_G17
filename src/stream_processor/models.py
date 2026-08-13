@@ -15,6 +15,9 @@ class TruckEvent(
     truck_id: int
     temperature: float
     timestamp: str
+    fuel_level: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class NormalizedReading(

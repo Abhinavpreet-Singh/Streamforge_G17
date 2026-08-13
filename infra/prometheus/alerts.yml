@@ -1,0 +1,24 @@
+groups:
+  - name: streamforge
+    rules:
+      - alert: StreamForgeKafkaDown
+        expr: streamforge_kafka_connected == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "StreamForge API Kafka consumer disconnected"
+      - alert: StreamForgeNoWorkers
+        expr: streamforge_workers_running == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No Faust stream-processor workers running"
+      - alert: StreamForgeHighAnomalies
+        expr: streamforge_anomalies > 20
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "High anomaly count in StreamForge rolling buffer"

@@ -7,6 +7,11 @@ function formatTemp(value) {
   return `${Number(value).toFixed(1)}°C`;
 }
 
+function formatFuel(value) {
+  if (value === undefined || value === null) return '—';
+  return `${Number(value).toFixed(0)}%`;
+}
+
 export default function Fleet() {
   const {
     animatedTrucks,
@@ -15,13 +20,14 @@ export default function Fleet() {
     telemetry,
     selectTruckOnMap,
     setSelectedTruck,
+    navigateTo,
   } = useApp();
 
   const trucks = animatedTrucks.length > 0 ? animatedTrucks : telemetry.trucks;
 
   const handleRowClick = (truck) => {
     setSelectedTruck(truck);
-    if (truck.coords) selectTruckOnMap(truck);
+    selectTruckOnMap(truck);
   };
 
   return (
@@ -38,9 +44,16 @@ export default function Fleet() {
               {trucks.length} active truck{trucks.length === 1 ? '' : 's'}
             </p>
             {!processorRunning && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5 mt-2">
-                Start the stream processor to see window averages.
-              </p>
+              <div className="mt-2 rounded border border-amber-100 bg-amber-50 px-2 py-1.5 flex items-center justify-between gap-2">
+                <p className="text-xs text-amber-700">Start the processor to see window averages.</p>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('operations')}
+                  className="text-[10px] font-medium px-2 py-1 rounded bg-neutral-900 text-white shrink-0"
+                >
+                  Operations
+                </button>
+              </div>
             )}
           </div>
 
@@ -112,6 +125,20 @@ export default function Fleet() {
                 <div>
                   <dt className="text-neutral-400">Hopping avg</dt>
                   <dd className="text-neutral-900 mt-0.5">{formatTemp(selectedTruck.hopping_avg)}</dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-400">Fuel</dt>
+                  <dd className="text-neutral-900 mt-0.5">{formatFuel(selectedTruck.fuel_level)}</dd>
+                </div>
+                <div>
+                  <dt className="text-neutral-400">GPS</dt>
+                  <dd className="text-neutral-900 mt-0.5">
+                    {selectedTruck.latitude != null && selectedTruck.longitude != null
+                      ? `${Number(selectedTruck.latitude).toFixed(3)}, ${Number(selectedTruck.longitude).toFixed(3)}`
+                      : selectedTruck.gpsSource === 'simulated'
+                        ? 'simulated'
+                        : '—'}
+                  </dd>
                 </div>
               </dl>
             </div>

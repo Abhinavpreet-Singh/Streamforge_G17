@@ -9,6 +9,9 @@ build/
 *.log
 .DS_Store
 rocksdb-data/
+*-rocksdb/
+*-dat/
+logs/
 
 venv312/
 venv312_windows/

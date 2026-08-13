@@ -1,11 +1,9 @@
 """
 Week 1 — Kafka Foundation (Owner: Team Lead, branch: Abhinavpreet)
 
-Blasts mock IoT truck telemetry (truck_id, temperature, timestamp) into the
-`truck-telemetry` Kafka topic using an idempotent confluent-kafka producer.
-Every message is validated against the registered Avro contract
-(schema/truck_reading.avsc, see scripts/register_schema.py) before it's
-sent, so a malformed reading never reaches the topic in the first place.
+Blasts mock IoT truck telemetry into the `truck-telemetry` Kafka topic using
+an idempotent confluent-kafka producer. Every message is validated against
+schema/truck_reading.avsc before send.
 """
 
 from __future__ import annotations
@@ -26,6 +24,18 @@ from confluent_kafka import Producer
 TOPIC = "truck-telemetry"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "schema" / "truck_reading.avsc"
 
+# Stable depot coords so the map shows real GPS from Kafka (not pure noise).
+_DEPOTS = [
+    (40.7128, -74.0060),
+    (34.0522, -118.2437),
+    (41.8781, -87.6298),
+    (29.7604, -95.3698),
+    (39.7392, -104.9903),
+    (47.6062, -122.3321),
+    (25.7617, -80.1918),
+    (32.7767, -96.7970),
+]
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("truck_producer")
 
@@ -39,20 +49,31 @@ class TruckReading:
     truck_id: int
     temperature: float
     timestamp: str
+    fuel_level: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     def to_json(self) -> bytes:
         return json.dumps(asdict(self)).encode("utf-8")
 
 
 class TruckFleetSimulator:
-    """Walks each truck's temperature from a random baseline instead of pure
-    noise, so downstream filtering/windowing has something realistic to chew on."""
+    """Walks each truck's temperature/fuel/position from a depot baseline."""
 
     def __init__(self, truck_count: int, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
-        self._baselines = {
-            truck_id: self._rng.uniform(30.0, 40.0) for truck_id in range(1, truck_count + 1)
-        }
+        self._baselines: dict[int, float] = {}
+        self._fuel: dict[int, float] = {}
+        self._lat: dict[int, float] = {}
+        self._lng: dict[int, float] = {}
+        for truck_id in range(1, truck_count + 1):
+            depot = _DEPOTS[(truck_id - 1) % len(_DEPOTS)]
+            jitter_lat = self._rng.uniform(-0.8, 0.8)
+            jitter_lng = self._rng.uniform(-0.8, 0.8)
+            self._baselines[truck_id] = self._rng.uniform(30.0, 40.0)
+            self._fuel[truck_id] = self._rng.uniform(40.0, 100.0)
+            self._lat[truck_id] = depot[0] + jitter_lat
+            self._lng[truck_id] = depot[1] + jitter_lng
 
     def next_batch(self) -> list[TruckReading]:
         now = datetime.now(timezone.utc).isoformat()
@@ -61,7 +82,23 @@ class TruckFleetSimulator:
             baseline += self._rng.uniform(-0.4, 0.4)
             self._baselines[truck_id] = baseline
             temperature = round(baseline + self._rng.uniform(-0.2, 0.2), 2)
-            readings.append(TruckReading(truck_id=truck_id, temperature=temperature, timestamp=now))
+
+            fuel = max(5.0, self._fuel[truck_id] - self._rng.uniform(0.01, 0.08))
+            self._fuel[truck_id] = fuel
+
+            self._lat[truck_id] += self._rng.uniform(-0.01, 0.01)
+            self._lng[truck_id] += self._rng.uniform(-0.01, 0.01)
+
+            readings.append(
+                TruckReading(
+                    truck_id=truck_id,
+                    temperature=temperature,
+                    timestamp=now,
+                    fuel_level=round(fuel, 2),
+                    latitude=round(self._lat[truck_id], 5),
+                    longitude=round(self._lng[truck_id], 5),
+                )
+            )
         return readings
 
 
@@ -69,7 +106,7 @@ def build_producer() -> Producer:
     return Producer(
         {
             "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
-            "enable.idempotence": True,  # exactly-once producer semantics (see README uniqueness §6)
+            "enable.idempotence": True,
             "acks": "all",
             "retries": 5,
             "max.in.flight.requests.per.connection": 5,
@@ -110,8 +147,6 @@ def run(truck_count: int, interval_seconds: float) -> None:
             if not fastavro.validate(payload, schema, raise_errors=False):
                 logger.error("message failed schema validation, dropping: %s", payload)
                 continue
-            # keyed by truck_id so all readings for one truck land on the same
-            # partition, in order — required for correct per-truck windowing
             producer.produce(
                 TOPIC,
                 key=str(reading.truck_id).encode("utf-8"),

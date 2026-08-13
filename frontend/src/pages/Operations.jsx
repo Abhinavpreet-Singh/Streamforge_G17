@@ -110,6 +110,13 @@ export default function Operations() {
                         {stackStatus.consumer_lag.total_lag ?? '—'}
                       </span>
                     </div>
+                    {stackStatus.consumer_lag.by_topic &&
+                      Object.entries(stackStatus.consumer_lag.by_topic).map(([topic, lag]) => (
+                        <div key={topic} className="flex justify-between gap-2 text-[10px]">
+                          <span className="text-neutral-400 truncate">{topic}</span>
+                          <span className="text-neutral-600">{lag}</span>
+                        </div>
+                      ))}
                     {stackStatus.consumer_lag.error && (
                       <p className="text-[10px] text-amber-700 pt-1 border-t border-neutral-200 mt-2">
                         {stackStatus.consumer_lag.error}
