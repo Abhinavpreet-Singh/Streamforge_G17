@@ -13,7 +13,7 @@ export default function Sidebar({ activePage, onNavigate }) {
         </div>
         <div className="min-w-0 opacity-0 -translate-x-2 group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 transition-all duration-200 delay-75">
           <p className="text-sm font-semibold text-neutral-900 truncate">StreamForge</p>
-          <p className="text-[10px] text-neutral-400 font-mono truncate">Console</p>
+          <p className="text-[10px] text-neutral-400 font-mono truncate">Event pipeline</p>
         </div>
       </div>
 
