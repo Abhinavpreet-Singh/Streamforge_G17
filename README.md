@@ -23,10 +23,10 @@ Producer → truck-telemetry → Faust (dedup → filter → map → windows) �
 - **Dual windowing** — tumbling and hopping averages per truck, visible on the fleet map and in live metrics
 - **Live pipeline DAG** — React Flow graph with per-stage rates (ingestion, dedup drops, filter, sink) updating over WebSocket
 - **Chaos from the UI** — start or crash the Faust worker from the Operations page; state wipe + Kafka replay demo
-- **Observability inside the app** — Grafana and Prometheus embedded on the Metrics page, plus Prometheus gauges on the API
+- **Observability inside the app** — Grafana/Prometheus embeds on Metrics, `streamforge_*` gauges, alert rules
 - **Proven throughput** — ~111k events/sec measured via `load_test_producer.py`
-- **Recovery story** — RocksDB + Kafka changelog demonstrated in `chaos_recovery_demo.py` and exactly-once scripts
-- **Schema-safe ingest** — Avro-validated producer with Schema Registry; 50k-truck dataset for offline validation
+- **Recovery story** — RocksDB dual-write + changelog in the live path; UI chaos wipe + `chaos_recovery_demo.py`
+- **Schema-safe ingest** — Avro-validated producer (temp, fuel, GPS) with Schema Registry; 50k-truck dataset
 
 ---
 
@@ -34,12 +34,12 @@ Producer → truck-telemetry → Faust (dedup → filter → map → windows) �
 
 | Area | Capability |
 | --- | --- |
-| **Ingest** | Idempotent truck producer, Avro schemas, demo mode (100 trucks / fast windows) |
-| **Processing** | Faust topology: dedup → filter (>0°C) → map → tumbling + hopping → sink |
-| **API** | `/health`, `/topology`, `/metrics`, `/api/status`, worker start/kill, WebSocket live feed |
-| **Dashboard** | Sidebar app: Overview, Fleet map + table, Operations, Metrics (Grafana/Prom embed) |
+| **Ingest** | Idempotent truck producer, Avro (temp/fuel/GPS), demo mode (100 trucks / fast windows) |
+| **Processing** | Faust topology: dedup → filter (>0°C) → map → tumbling + hopping → sink + RocksDB dual-write |
+| **API** | `/health`, `/topology`, `/metrics`, `/api/status` (lag), worker start/kill/logs, WebSocket |
+| **Dashboard** | Overview, Fleet, Pipeline, Operations, Metrics (Grafana/Prom embed) |
 | **Charts** | 60-second rolling throughput chart (ingestion vs filtered) |
-| **Ops** | Docker stack: Kafka, Schema Registry, Kafka UI, Prometheus, Grafana |
+| **Ops** | Docker stack: Kafka, Schema Registry, Kafka UI, Prometheus (+alerts), Grafana |
 | **Data** | 50k-truck synthetic CSV + `validate_dataset.py` |
 | **Testing** | Pytest suite, stack health check, load test, chaos and exactly-once demos |
 
@@ -109,7 +109,7 @@ Open http://localhost:5173 → **Operations** → **Start** stream processor.
 | Grafana | http://localhost:3001 (`admin` / `admin`) |
 | Prometheus | http://localhost:9090 |
 
-Helper: `.\scripts\run_demo.ps1` · Architecture: [docs/architecture.md](docs/architecture.md)
+Helper: `.\scripts\run_demo.ps1` · Architecture: [docs/architecture.md](docs/architecture.md) · Observability check: `python scripts/verify_observability.py`
 
 ---
 

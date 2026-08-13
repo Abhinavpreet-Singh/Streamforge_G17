@@ -23,7 +23,7 @@ export default function App() {
   const ActivePageComponent = PAGES[activePage] ?? PAGES[NAV_ITEMS[0].id];
 
   return (
-    <AppProvider>
+    <AppProvider navigateTo={setActivePage}>
       <AppShell activePage={activePage} onNavigate={setActivePage}>
         <ActivePageComponent />
       </AppShell>

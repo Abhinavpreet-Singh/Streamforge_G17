@@ -110,6 +110,8 @@ class TelemetryState:
         temp = reading.get("temperature")
         ts = reading.get("timestamp")
         fuel = reading.get("fuel_level")
+        lat = reading.get("latitude")
+        lng = reading.get("longitude")
         now = time_now_seconds()
 
         with self.lock:
@@ -133,16 +135,23 @@ class TelemetryState:
                     "last_temperature": temp,
                     "last_timestamp": ts,
                     "fuel_level": fuel,
+                    "latitude": lat,
+                    "longitude": lng,
                     "tumbling_avg": None,
                     "hopping_avg": None,
                     "reading_count": 0,
-                    "status": "active"
+                    "status": "active",
                 }
             else:
-                self.trucks[truck_id]["last_temperature"] = temp
-                self.trucks[truck_id]["last_timestamp"] = ts
+                truck = self.trucks[truck_id]
+                truck["last_temperature"] = temp
+                truck["last_timestamp"] = ts
                 if fuel is not None:
-                    self.trucks[truck_id]["fuel_level"] = fuel
+                    truck["fuel_level"] = fuel
+                if lat is not None:
+                    truck["latitude"] = lat
+                if lng is not None:
+                    truck["longitude"] = lng
 
             if temp is not None and temp > 42.0:
                 anomaly = {
@@ -150,7 +159,7 @@ class TelemetryState:
                     "temperature": temp,
                     "timestamp": ts,
                     "type": "High Temperature Alert",
-                    "severity": "critical" if temp > 45 else "warning"
+                    "severity": "critical" if temp > 45 else "warning",
                 }
                 self.anomalies.append(anomaly)
                 if len(self.anomalies) > 50:
@@ -168,14 +177,31 @@ class TelemetryState:
             truck_id = aggregate.get("truck_id")
             w_type = aggregate.get("window_type")
             avg_temp = aggregate.get("average_temperature")
-            count = aggregate.get("reading_count")
+            count = aggregate.get("reading_count") or 0
 
-            if truck_id in self.trucks:
-                if w_type == "tumbling":
-                    self.trucks[truck_id]["tumbling_avg"] = avg_temp
-                elif w_type == "hopping":
-                    self.trucks[truck_id]["hopping_avg"] = avg_temp
-                self.trucks[truck_id]["reading_count"] += count
+            if truck_id is None:
+                return
+
+            if truck_id not in self.trucks:
+                self.trucks[truck_id] = {
+                    "truck_id": truck_id,
+                    "last_temperature": avg_temp,
+                    "last_timestamp": aggregate.get("computed_at"),
+                    "fuel_level": None,
+                    "latitude": None,
+                    "longitude": None,
+                    "tumbling_avg": None,
+                    "hopping_avg": None,
+                    "reading_count": 0,
+                    "status": "active",
+                }
+
+            truck = self.trucks[truck_id]
+            if w_type == "tumbling":
+                truck["tumbling_avg"] = avg_temp
+            elif w_type == "hopping":
+                truck["hopping_avg"] = avg_temp
+            truck["reading_count"] = (truck.get("reading_count") or 0) + count
 
     def _rate_from_times(self, times: list[float], window: float = 5.0) -> float:
         now = time_now_seconds()
@@ -241,6 +267,7 @@ def faust_state_dirs() -> List[Path]:
         REPO_ROOT / f"{APP_ID}-dat",
         REPO_ROOT / "streamforge-dat",
         REPO_ROOT / "streamforge-data",
+        REPO_ROOT / f"{APP_ID}-rocksdb",
     ]
 
 
@@ -496,7 +523,7 @@ def topology():
                 {"id": "tumbling", "label": tumble_label, "type": "window"},
                 {"id": "hopping", "label": hop_label, "type": "window"},
                 {"id": "state", "label": "Faust State Tables", "type": "storage"},
-                {"id": "changelog", "label": "Changelog (recovery demos)", "type": "storage"},
+                {"id": "changelog", "label": "RocksDB + changelog (dual-write)", "type": "storage"},
                 {"id": "sink", "label": "Kafka Output (truck-averages)", "type": "output"},
             ],
             "edges": [
@@ -505,6 +532,7 @@ def topology():
                 {"source": "filter", "target": "map"},
                 {"source": "map", "target": "tumbling"},
                 {"source": "map", "target": "hopping"},
+                {"source": "map", "target": "changelog"},
                 {"source": "tumbling", "target": "state"},
                 {"source": "hopping", "target": "state"},
                 {"source": "tumbling", "target": "sink"},

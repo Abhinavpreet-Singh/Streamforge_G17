@@ -17,7 +17,7 @@ const EMPTY_TELEMETRY = {
   anomalies: [],
 };
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, navigateTo }) {
   const [wsStatus, setWsStatus] = useState('connecting');
   const [telemetry, setTelemetry] = useState(EMPTY_TELEMETRY);
   const [throughputHistory, setThroughputHistory] = useState([]);
@@ -172,11 +172,11 @@ export function AppProvider({ children }) {
         },
       },
       {
-        id: 'changelog', type: 'pipelineNode', position: { x: 1360, y: 250 },
+        id: 'changelog', type: 'pipelineNode', position: { x: 800, y: 320 },
         data: {
-          type: 'storage', label: 'Changelog Recovery', status: pipelineActive ? 'active' : 'crashed',
+          type: 'storage', label: 'RocksDB Dual-Write', status: pipelineActive ? 'active' : 'crashed',
           metricName: 'Topic', metricValue: 'truck-state-changelog',
-          subMetricName: 'Demo', subMetricValue: 'chaos_recovery_demo',
+          subMetricName: 'Store', subMetricValue: `${stackStatus?.pipeline?.app_id ?? 'streamforge'}-rocksdb`,
         },
       },
       {
@@ -202,6 +202,7 @@ export function AppProvider({ children }) {
       { id: 'e3', source: 'filter', target: 'map', animated: anim, style: { stroke, strokeWidth: 2 } },
       { id: 'e4', source: 'map', target: 'tumbling', animated: anim, style: { stroke, strokeWidth: 2 } },
       { id: 'e5', source: 'map', target: 'hopping', animated: anim, style: { stroke, strokeWidth: 2 } },
+      { id: 'e5b', source: 'map', target: 'changelog', animated: anim, style: { stroke: dash, strokeWidth: 2, strokeDasharray: '5,5' } },
       { id: 'e6', source: 'tumbling', target: 'state', animated: anim, style: { stroke: dash, strokeWidth: 2, strokeDasharray: '5,5' } },
       { id: 'e7', source: 'hopping', target: 'state', animated: anim, style: { stroke: dash, strokeWidth: 2, strokeDasharray: '5,5' } },
       { id: 'e9', source: 'tumbling', target: 'sink', animated: anim, style: { stroke, strokeWidth: 2 } },
@@ -211,18 +212,46 @@ export function AppProvider({ children }) {
 
   const animatedTrucks = useMemo(
     () =>
-      telemetry.trucks.map((truck) => ({
-        ...truck,
-        coords: calculateCurrentPosition(truck.truck_id, systemTime),
-        isAnomalous: truck.last_temperature > 42,
-      })),
+      telemetry.trucks.map((truck) => {
+        const hasGps =
+          typeof truck.latitude === 'number' && typeof truck.longitude === 'number';
+        return {
+          ...truck,
+          coords: hasGps
+            ? [truck.latitude, truck.longitude]
+            : calculateCurrentPosition(truck.truck_id, systemTime),
+          gpsSource: hasGps ? 'kafka' : 'simulated',
+          isAnomalous: truck.last_temperature > 42,
+        };
+      }),
     [telemetry.trucks, systemTime]
   );
 
   const selectTruckOnMap = (truck) => {
-    setSelectedTruck(truck);
-    setMapCenter(truck.coords);
+    if (!truck) return;
+    const coords =
+      truck.coords ??
+      (typeof truck.latitude === 'number' && typeof truck.longitude === 'number'
+        ? [truck.latitude, truck.longitude]
+        : calculateCurrentPosition(truck.truck_id, systemTime));
+    const resolved = { ...truck, coords };
+    setSelectedTruck(resolved);
+    setMapCenter(coords);
     setMapZoom(6);
+  };
+
+  const focusAnomaly = (anomaly) => {
+    if (!anomaly?.truck_id) return;
+    const existing =
+      animatedTrucks.find((t) => t.truck_id === anomaly.truck_id) ||
+      telemetry.trucks.find((t) => t.truck_id === anomaly.truck_id);
+    selectTruckOnMap(
+      existing || {
+        truck_id: anomaly.truck_id,
+        last_temperature: anomaly.temperature,
+        isAnomalous: true,
+      }
+    );
   };
 
   const resetMapView = () => {
@@ -249,8 +278,10 @@ export function AppProvider({ children }) {
     animatedTrucks,
     handleWorkerAction,
     selectTruckOnMap,
+    focusAnomaly,
     resetMapView,
     setSelectedTruck,
+    navigateTo: navigateTo ?? (() => {}),
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

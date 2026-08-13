@@ -1,27 +1,127 @@
 {
   "annotations": { "list": [] },
   "editable": true,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "panels": [
     {
       "type": "timeseries",
-      "title": "API Telemetry Messages",
+      "title": "Ingestion rate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" }
+      },
       "targets": [
         {
-          "expr": "rate(telemetry_messages_total[1m])",
-          "legendFormat": "messages/s"
+          "expr": "streamforge_ingestion_rate",
+          "legendFormat": "ingestion msg/s",
+          "refId": "A"
+        },
+        {
+          "expr": "streamforge_aggregate_rate",
+          "legendFormat": "sink msg/s",
+          "refId": "B"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Health Checks",
+      "title": "Filter & dedup drops",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
+          "expr": "streamforge_filter_rate",
+          "legendFormat": "filtered/s",
+          "refId": "A"
+        },
+        {
+          "expr": "streamforge_duplicate_drop_rate",
+          "legendFormat": "dup drops/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Active trucks",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "streamforge_active_trucks",
+          "legendFormat": "trucks",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Workers running",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "streamforge_workers_running",
+          "legendFormat": "workers",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Kafka connected",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "streamforge_kafka_connected",
+          "legendFormat": "kafka",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Anomalies",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "streamforge_anomalies",
+          "legendFormat": "anomalies",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "API counter rates",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "rate(telemetry_messages_total[1m])",
+          "legendFormat": "telemetry/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(streamforge_aggregates_total[1m])",
+          "legendFormat": "aggregates/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Health checks",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
           "expr": "rate(health_requests_total[1m])",
-          "legendFormat": "health/s"
+          "legendFormat": "health/s",
+          "refId": "A"
         }
       ]
     }
@@ -29,5 +129,7 @@
   "schemaVersion": 39,
   "title": "StreamForge API",
   "uid": "streamforge-api",
-  "version": 1
+  "version": 2,
+  "timezone": "browser",
+  "refresh": "5s"
 }

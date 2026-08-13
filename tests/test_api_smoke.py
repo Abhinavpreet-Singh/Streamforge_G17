@@ -13,6 +13,7 @@ def test_build_stack_status_shape():
     assert status["workers"] == {"running": 0, "total": 1}
     assert "ready" in status
     assert status["consumer_lag"]["group"] == "streamforge"
+    assert "by_topic" in status["consumer_lag"] or status["consumer_lag"].get("total_lag") is None
 
 
 def test_build_stack_status_counts_running_workers():

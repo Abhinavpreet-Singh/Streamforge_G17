@@ -2,36 +2,37 @@
 
 ```
 50,000 simulated trucks (live: 100–500 in demo mode)
-        │  truck_id, temperature, timestamp (Avro-validated)
+        │  truck_id, temperature, timestamp, fuel, lat/lng (Avro)
         ▼
  truck_producer.py  ──►  Kafka: truck-telemetry (20 partitions)
                                  │
                                  ▼
               Faust topology (consumer group: streamforge)
-              Dedup → Filter(temp > 0) → Map → Tumbling + Hopping windows
+              Dedup → Filter(temp > 0) → Map → Tumbling + Hopping
                                  │
-                     ┌───────────┴────────────┐
-                     ▼                        ▼
-           Faust state tables          truck-averages topic
-           (local *-dat store)                 │
-                     │                        ▼
-           RocksDB + changelog          FastAPI /ws/live
-           (chaos_recovery_demo)              │
-                     │                        ▼
-                     └──────────►  React dashboard (map, DAG, throughput chart)
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+     Faust state tables   truck-averages     RocksDB dual-write
+     (local *-dat)              │            + truck-state-changelog
+                                ▼
+                         FastAPI /ws/live
+                                │
+                                ▼
+                   React dashboard (map, DAG, throughput, metrics)
 ```
 
 ## Components
 
 | Piece | Role |
 | --- | --- |
-| Producer | Idempotent Kafka producer, Avro validation |
-| Faust workers | Stream DAG, windowed averages per truck |
-| RocksDB store | Used in `chaos_recovery_demo` + tests; Faust tables in live path |
-| FastAPI | `/health`, `/metrics`, `/topology`, `/api/status`, `/ws/live`, worker control |
-| Dashboard | Leaflet map, React Flow DAG, Recharts throughput, chaos panel |
+| Producer | Idempotent Kafka producer, Avro validation, GPS + fuel |
+| Faust worker | Stream DAG, windowed averages per truck (single `stream-processor`) |
+| RocksDB store | Live dual-write of rolling averages + `chaos_recovery_demo` |
+| FastAPI | `/health`, `/metrics`, `/topology`, `/api/status`, `/ws/live`, worker start/kill/logs |
+| Dashboard | Leaflet map (Kafka GPS), React Flow DAG, Recharts, Grafana embeds |
 
 ## Recovery
 
-Worker crash → partitions rebalance → new worker replays Faust state / changelog demo proves
-RocksDB + Kafka changelog convergence with zero data loss (`scripts/chaos_recovery_demo.py`).
+**Chaos from UI:** Crash worker → wipe Faust `*-dat` + RocksDB dir → Start again → Kafka replay rebuilds windows; changelog remains available for the RocksDB demo path.
+
+Standalone proof: `scripts/chaos_recovery_demo.py`.

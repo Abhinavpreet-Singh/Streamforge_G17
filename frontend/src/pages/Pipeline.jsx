@@ -13,7 +13,7 @@ const STAGE_BLURBS = {
   tumbling: 'Fixed non-overlapping windows — average temperature per truck.',
   hopping: 'Sliding windows with a hop step — smoother rolling averages.',
   state: 'Faust table store on disk (*-dat) for window state.',
-  changelog: 'Recovery path proven in chaos_recovery_demo (RocksDB + changelog).',
+  changelog: 'RocksDB dual-write + truck-state-changelog (mirrors rolling averages for recovery demos).',
   sink: 'Publishes tumbling and hopping aggregates to truck-averages.',
 };
 
