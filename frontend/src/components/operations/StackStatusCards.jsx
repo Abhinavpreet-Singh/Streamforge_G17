@@ -24,7 +24,7 @@ export default function StackStatusCards() {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <StatusCard label="Kafka" ok={kafkaOk} detail={stackStatus?.kafka?.broker ?? 'localhost:9092'} />
+      <StatusCard label="Kafka" ok={kafkaOk} detail={stackStatus?.kafka?.bootstrap ?? 'localhost:9092'} />
       <StatusCard label="Schema Registry" ok={registryOk} detail={stackStatus?.schema_registry?.url} />
       <StatusCard
         label="Stream Processor"
