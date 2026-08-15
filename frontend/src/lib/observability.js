@@ -1,4 +1,7 @@
-/** Grafana & Prometheus URLs — proxied in dev via vite.config.js */
+/** Grafana & Prometheus — embed the real origins (not the Vite subpath proxy).
+ *  Proxying /grafana rewrites the path, so Grafana's /public/*.js 404 on :5173
+ *  and the iframe shows "failed to load its application files".
+ */
 
 const GRAFANA_DASH = '/d/streamforge-api';
 
@@ -10,14 +13,14 @@ export const OBS_TABS = {
     id: 'grafana',
     label: 'Grafana',
     description: 'Live charts from Prometheus',
-    embedSrc: `/grafana${GRAFANA_DASH}?orgId=1&theme=light&kiosk`,
+    embedSrc: `${GRAFANA_URL}?orgId=1&theme=light&kiosk`,
     externalHref: GRAFANA_URL,
   },
   prometheus: {
     id: 'prometheus',
     label: 'Prometheus',
     description: 'Scrape targets and query UI',
-    embedSrc: '/prometheus/targets',
+    embedSrc: PROMETHEUS_URL,
     externalHref: PROMETHEUS_URL,
   },
   api: {

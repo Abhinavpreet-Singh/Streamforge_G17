@@ -115,14 +115,16 @@ Helper: `.\scripts\run_demo.ps1` · Architecture: [docs/architecture.md](docs/ar
 
 ## Team
 
-| Member | Contribution |
+Credits follow git history (commits + files touched), not the original role sheet.
+
+| Member | What they shipped |
 | --- | --- |
-| **Abhinavpreet Singh Arora** | Lead — Docker stack, producer, API integration, RocksDB demos, merges |
-| **Meven Regi** | Faust topology — dedup, filter, map, tumbling/hopping windows, Kafka wiring |
-| **Noore Simin** | React dashboard — throughput chart, fleet map UI, Fleet page |
-| **Shifana** | FastAPI — `/topology`, `/metrics`, WebSocket live feed, `/api/status` |
-| **Raghavendra** | 50k-truck dataset and `validate_dataset.py` |
-| **Surya** | Architecture docs, chaos/load demos, `run_demo.ps1`, pytest |
+| **Abhinavpreet Singh Arora** (Lead) | Docker/Kafka stack, producer + Avro, RocksDB + chaos/load demos, API/UI integration, Pipeline page, Grafana, merges |
+| **Meven Regi** | Faust app — topics, models, topology (dedup → filter → map → tumbling/hopping) |
+| **Noore Simin** | React app scaffold, live throughput chart, Fleet page (map + table), message validator + tests |
+| **Shifana Parveen R** | FastAPI `/metrics`, `/topology`, stack health; Operations page + ChaosPanel |
+| **Surya Sankar** | Metrics page — live rates, StatCards, auto-refresh, raw `/metrics` panel |
+| **Raghavendra** | 50k-truck synthetic dataset (`datasets/truck_data.csv`) |
 
 ---
 

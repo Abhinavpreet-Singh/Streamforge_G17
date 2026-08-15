@@ -13,7 +13,7 @@ Team of 6 — roles assigned by skill fit. Every member commits on their own bra
 | Shifana | `shifana` | Backend API & Observability | FastAPI `/health` ✓ | `/metrics`, `/topology` ✓ | WebSocket `/ws/live` ✓ | `/api/status`, stack health |
 | Surya | `Surya` | Docs, Testing & Chaos | Architecture diagrams ✓ | Validator tests ✓ | `chaos_recovery_demo.py` ✓ | Demo scripts (`run_demo.ps1`) |
 
-Branches with no commits yet: `simin-testing` (reserved for throughput chart iteration).
+**Shipped (git, not the plan):** Lead — stack, producer, RocksDB/chaos/load, integration. Meven — Faust topology. Noore — React scaffold, chart, Fleet, validator. Shifana — FastAPI metrics/topology/status, Operations/Chaos. Surya — Metrics page. Raghavendra — 50k CSV.
 
 ## Distribution Rationale
 
