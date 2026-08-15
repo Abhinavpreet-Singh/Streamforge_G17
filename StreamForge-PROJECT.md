@@ -11,23 +11,18 @@ with zero data loss (state recovered from a RocksDB changelog).
 
 ## 1. Team & Ownership
 
-Team is 6, not 5 — roles are assigned by current skill fit rather than the original 5-role template.
-Full rationale in [WORK_DISTRIBUTION.md](WORK_DISTRIBUTION.md).
+Six people, one branch each. Lead merges to `main`. Credits below match **git commits / files**, not the Week-1 template.
 
-| Role | Owner | Branch | Focus |
-|---|---|---|---|
-| Team Lead — Kafka Foundation & Integration | Abhinavpreet | `Abhinavpreet` | Cluster setup, producer, Avro schemas, merges, review prep |
-| Stream Processing Engineer | Member 2 | `Meven` | Faust/Bytewax topology, windowing logic, RocksDB changelog wiring |
-| Data Simulation & Validation Engineer | Member 3 | _TBD_ | Synthetic truck dataset, output validation, recovery verification |
-| Frontend/Dashboard Engineer | Member 4 | _TBD_ | React Flow DAG view, live telemetry dashboard |
-| Documentation, Testing & Chaos Engineer | Member 5 | _TBD_ | Architecture diagrams, test cases, chaos-testing scripts |
-| Backend API & Observability Engineer | Member 6 | _TBD_ | FastAPI topology monitor, Prometheus metrics, WebSocket feed |
+| Member | Branch | Shipped (from git) |
+|---|---|---|
+| Abhinavpreet Singh Arora (Lead) | `Abhinavpreet` | Docker/Kafka, producer + Avro, RocksDB + chaos/load scripts, API/UI integration, Pipeline, Grafana |
+| Meven Regi | `Meven` | Faust topology — config, models, dedup → filter → map → windows |
+| Noore Simin | `Noore` | React scaffold, throughput chart, Fleet page, `validator.py` + tests |
+| Shifana Parveen R | `shifana` | FastAPI `/metrics`, `/topology`, stack health; Operations + ChaosPanel |
+| Surya Sankar | `Surya` | Metrics page — rates, StatCards, refresh, raw `/metrics` |
+| Raghavendra | `Raghavendra` | 50k-truck CSV dataset |
 
-> Real GitHub branches already exist for the team: `Abhinavpreet`, `Meven`, `Noore`, `Raghavendra`,
-> `Shifana`, `Surya`. Fill in the `_TBD_` cells once each remaining branch is matched to a role.
-
-Per Axlero SOP: every member commits **directly to their own branch**; the Team Lead is the only one
-who merges into `main`. GitHub is mandatory for this project (no Figma exemption here).
+Planned week-by-week roles: [WORK_DISTRIBUTION.md](WORK_DISTRIBUTION.md).
 
 ## 2. Repo & Branching Strategy
 

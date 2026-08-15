@@ -282,7 +282,7 @@ class WorkerManager:
                 "label": "Faust Stream Processor",
             },
         }
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def start_worker(self, name: str) -> bool:
         with self.lock:

@@ -6,7 +6,6 @@
     {
       "type": "timeseries",
       "title": "Ingestion rate",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "fieldConfig": {
         "defaults": { "unit": "ops" }
@@ -27,7 +26,6 @@
     {
       "type": "timeseries",
       "title": "Filter & dedup drops",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
@@ -45,7 +43,6 @@
     {
       "type": "stat",
       "title": "Active trucks",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
       "targets": [
         {
@@ -58,7 +55,6 @@
     {
       "type": "stat",
       "title": "Workers running",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
       "targets": [
         {
@@ -71,7 +67,6 @@
     {
       "type": "stat",
       "title": "Kafka connected",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
       "targets": [
         {
@@ -84,7 +79,6 @@
     {
       "type": "stat",
       "title": "Anomalies",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
       "targets": [
         {
@@ -97,7 +91,6 @@
     {
       "type": "timeseries",
       "title": "API counter rates",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
@@ -115,7 +108,6 @@
     {
       "type": "timeseries",
       "title": "Health checks",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
